@@ -1,12 +1,12 @@
 # Despliegue
 
-Al Corte conserva Next.js App Router, React, TypeScript y Prisma. El destino de hosting es la Static Web App existente `gentle-sky-060525010` (`https://gentle-sky-060525010.4.azurestaticapps.net`) en el grupo `barberias`; no crear otra SWA ni desplegar un backend separado. Next.js Hybrid admite SSR, App Router y Route Handlers, pero Microsoft lo documenta como preview. El workflow debe mantener `app_location: "/"`, `api_location: ""` y `output_location: ""`; no habilitar `output: "export"`.
+Al Corte conserva Next.js App Router, React, TypeScript y Prisma. El destino es la Static Web App existente `barberweb` (`https://gentle-sky-060525010.4.azurestaticapps.net`), SKU Free, en el grupo `barberias`; está vinculada al repositorio `yunior25cu/barberias` y a `main`. No crear otra SWA ni desplegar un backend separado. Next.js Hybrid admite SSR, App Router y Route Handlers, pero Microsoft lo documenta como preview. El workflow debe mantener `app_location: "/"`, `api_location: ""` y `output_location: ""`; no habilitar `output: "export"`.
 
 El workflow de Static Web Apps llama al workflow reutilizable `ci-cd.yml`. La calidad se ejecuta antes de publicar. Este repo genera salida Next.js standalone y copia los assets estáticos que necesita el servidor. La SWA solo está configurada para el branch `main`; publicar en `barber` no despliega producción.
 
 ## Configuración de entorno
 
-Las variables privadas se guardan en el entorno de producción de la Static Web App, fuera del repositorio. Al terminar el acceso Azure SQL hay que configurar, como mínimo:
+Las variables privadas se guardan en el entorno de producción de la Static Web App, fuera del repositorio. La consulta de nombres de settings no devolvió claves configuradas. Al terminar el acceso Azure SQL hay que configurar, como mínimo:
 
 - `AZURE_SQL_AUTH_MODE`, `AZURE_SQL_SERVER`, `AZURE_SQL_DATABASE`.
 - Credenciales privadas del principal Entra mapeado en Azure SQL, si el runtime Hybrid no ofrece identidad administrada para la aplicación.
