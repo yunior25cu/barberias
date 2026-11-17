@@ -71,7 +71,11 @@ export async function handlePOST(request: Request, business: BusinessContext) {
     if (!result) return error("No pudimos verificar la reserva.", 404);
     if ("unavailable" in result) return error("Ese horario ya no está disponible. Elegí otro.", 409);
     return json({ cancelled: body.data.action === "cancel", already: result.already, ...("startsAt" in result ? { startsAt: result.startsAt } : {}) });
-  } catch {
+  } catch (cause) {
+    if (process.env.CI === "true") {
+      const code = cause && typeof cause === "object" && "code" in cause ? String(cause.code) : "unknown";
+      console.error("MANAGE_RESCHEDULE_FAILED", { name: cause instanceof Error ? cause.name : "unknown", code });
+    }
     return error("No pudimos cambiar la reserva ahora. Probá más tarde.", 503);
   }
 }
