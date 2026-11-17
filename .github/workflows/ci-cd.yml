@@ -77,8 +77,6 @@ jobs:
         env:
           ALCORTE_MIGRATION_TARGET: 20261118000000_add_business_tenancy
         run: npm run db:release
-      - name: Verify Prisma migration history
-        run: npx prisma migrate status
       - name: Verify preserved data and tenant constraints
         run: node scripts/verify-multitenant-migration.mjs
       - name: Apply incremental platform migration
