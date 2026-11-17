@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" rx="0" fill="#F7FAF4"/>
+  <circle cx="1042" cy="88" r="260" fill="#E6F0DD"/>
+  <circle cx="115" cy="572" r="190" fill="#EEF4E9"/>
+  <rect x="82" y="85" width="44" height="44" rx="14" fill="#176B50"/>
+  <text x="104" y="116" fill="white" text-anchor="middle" font-family="Arial,sans-serif" font-size="21" font-weight="700">R</text>
+  <text x="143" y="116" fill="#14251F" font-family="Arial,sans-serif" font-size="29" font-weight="700">Reserva</text>
+  <rect x="82" y="200" width="12" height="12" rx="6" fill="#8BBD50"/>
+  <text x="112" y="211" fill="#176B50" font-family="Arial,sans-serif" font-size="17" font-weight="700" letter-spacing="3">RESERVAS ONLINE PARA TU LOCAL</text>
+  <text x="82" y="302" fill="#14251F" font-family="Arial,sans-serif" font-size="59" font-weight="700" letter-spacing="-2">Tu agenda ordenada.</text>
+  <text x="82" y="371" fill="#176B50" font-family="Arial,sans-serif" font-size="59" font-weight="700" letter-spacing="-2">Tus clientes reservan online.</text>
+  <text x="84" y="429" fill="#60716B" font-family="Arial,sans-serif" font-size="23">Reservas para peluquerías y barberías, en un solo lugar.</text>
+  <rect x="84" y="482" width="206" height="56" rx="10" fill="#176B50"/>
+  <text x="187" y="517" fill="white" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" font-weight="700">Solicitar una demo</text>
+  <rect x="817" y="128" width="280" height="405" rx="28" fill="white" stroke="#DDE7DC" stroke-width="2"/>
+  <rect x="831" y="142" width="252" height="377" rx="18" fill="#FBFCF9"/>
+  <rect x="849" y="162" width="32" height="32" rx="10" fill="#176B50"/>
+  <text x="865" y="184" fill="white" text-anchor="middle" font-family="Arial,sans-serif" font-size="14" font-weight="700">CN</text>
+  <text x="849" y="229" fill="#78867F" font-family="Arial,sans-serif" font-size="10" font-weight="700" letter-spacing="1.4">RESERVÁ TU HORA</text>
+  <text x="849" y="259" fill="#14251F" font-family="Arial,sans-serif" font-size="24" font-weight="700">Casa Norte</text>
+  <text x="849" y="281" fill="#78867F" font-family="Arial,sans-serif" font-size="12">Elegí un servicio para empezar</text>
+  <rect x="849" y="301" width="216" height="58" rx="11" fill="white" stroke="#E1E9E3"/>
+  <circle cx="874" cy="330" r="14" fill="#EAF2E6"/>
+  <text x="896" y="326" fill="#14251F" font-family="Arial,sans-serif" font-size="13" font-weight="700">Corte clásico</text>
+  <text x="896" y="344" fill="#78867F" font-family="Arial,sans-serif" font-size="11">30 min · $ 650</text>
+  <rect x="849" y="369" width="216" height="58" rx="11" fill="white" stroke="#E1E9E3"/>
+  <circle cx="874" cy="398" r="14" fill="#F5EFE3"/>
+  <text x="896" y="394" fill="#14251F" font-family="Arial,sans-serif" font-size="13" font-weight="700">Barba</text>
+  <text x="896" y="412" fill="#78867F" font-family="Arial,sans-serif" font-size="11">20 min · $ 400</text>
+  <rect x="849" y="447" width="66" height="34" rx="8" fill="#EAF2E6"/>
+  <rect x="923" y="447" width="66" height="34" rx="8" fill="#176B50"/>
+  <rect x="997" y="447" width="68" height="34" rx="8" fill="#EAF2E6"/>
+  <text x="882" y="469" fill="#176B50" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="700">09:30</text>
+  <text x="956" y="469" fill="white" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="700">10:00</text>
+  <text x="1031" y="469" fill="#176B50" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="700">10:30</text>
+  <text x="84" y="584" fill="#60716B" font-family="Arial,sans-serif" font-size="15">Un producto de Balaxys</text>
+</svg>

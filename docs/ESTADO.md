@@ -204,3 +204,14 @@ Esta entrada supersede los estados de planificación antiguos de este documento 
 - `barber_sql` está Online en General Purpose serverless, con límite Free y `AutoPause`. La migración `20261119000000_platform_panel` fue aplicada luego de inspeccionar tablas e historial.
 - La rama `main` está desplegada por el workflow aprobado; el login del administrador de plataforma y su sesión fueron comprobados vía HTTPS.
 - El hostname predeterminado de Azure sigue identificando la misma Static Web App, pero ya no es la URL canónica ni debe usarse en enlaces/documentación nuevos.
+
+## Landing comercial en raíz — 2026-11-17
+
+- La portada `/` ahora presenta el producto **Reserva**; **Al Corte** se mantiene como negocio/tenant inicial en `/al-corte/reservar`. Las rutas por tenant no se cambiaron.
+- Incluye presentación comercial, funciones, pasos, FAQ, acceso por slug validado y CTA de demo. El contacto confirmado por el propietario es `+598 94448249`; el botón abre WhatsApp con mensaje prellenado, que el usuario revisa antes de enviar.
+- La landing es renderizada estáticamente y no importa Prisma ni consulta APIs. Metadatos canonical/Open Graph/Twitter usan `https://reservas.balaxys.com`; imagen en `/marketing/og.svg`.
+- Verificado localmente: `npm run build`, `npm run lint`, `npm run typecheck`, `npm test` (5 pasan; 4 omitidos porque falta SQL local), `npm audit --omit=dev --audit-level=moderate` (0 vulnerabilidades), `npm run test:e2e:landing:static` (2/2), `git diff --check`.
+- Se revisaron capturas standalone en 320, 390 y 1440 CSS px. La navegación y FAQ se probaron con teclado; falta auditoría automatizada de contraste/axe.
+- Suites que requieren SQL y regresión de tenants deben ejecutarse mediante CI con su SQL efímero. Aún no se ha hecho push ni despliegue. Capturas locales: `test-results/` (no versionadas).
+
+**Gates de esta fase:** `LANDING=PASS`; `CTA=PASS`; `SEO=PASS`; `ACCESSIBILITY=PARTIAL` (axe/contraste pendientes); `TENANT_REGRESSION=NOT RUN` (CI/SQL pendiente); `CI=NOT RUN`; `DEPLOYMENT=NOT RUN`.
