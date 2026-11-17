@@ -1,17 +1,25 @@
 # Despliegue
 
-Next.js serves the public pages, admin panel, and APIs in one Linux App Service. The build produces `output: standalone` for a reproducible Node package.
+Al Corte conserva Next.js App Router, React, TypeScript y Prisma. El destino de hosting es la Static Web App existente `gentle-sky-060525010` (`https://gentle-sky-060525010.4.azurestaticapps.net`) en el grupo `barberias`; no crear otra SWA ni desplegar un backend separado. Next.js Hybrid admite SSR, App Router y Route Handlers, pero Microsoft lo documenta como preview. El workflow debe mantener `app_location: "/"`, `api_location: ""` y `output_location: ""`; no habilitar `output: "export"`.
 
-GitHub Actions runs all gates on isolated SQL Server. Production deployment is manual from `main`, follows the passing quality job, and uses the protected GitHub environment `production`. Before applying SQL, the workflow lists table names and row counts and stops if an unrecognized application schema is present. It then applies the SQL migration files, provisions the admin without demo data, grants the App Service identity data access, and deploys the standalone artifact.
+El workflow de Static Web Apps llama al workflow reutilizable `ci-cd.yml`. La calidad se ejecuta antes de publicar. Este repo genera salida Next.js standalone y copia los assets estáticos que necesita el servidor. La SWA solo está configurada para el branch `main`; publicar en `barber` no despliega producción.
 
-## GitHub production environment
+## Configuración de entorno
 
-- Secrets: `SESSION_SECRET`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`.
-- Variables: `AZURE_WEBAPP_NAME`, `AZURE_RESOURCE_GROUP`, `AZURE_SQL_SERVER`, `AZURE_SQL_DATABASE`, `APP_URL`.
-- `DATABASE_URL` contains only SQL host, database, and encryption settings; it carries no SQL password. The App Service uses its managed identity for runtime access. The GitHub service principal authenticates migrations and administrator provisioning; an Entra administrator must map it in Azure SQL and grant `db_ddladmin`, `db_datareader`, and `db_datawriter`.
-- The workflow assigns the App Service identity only `db_datareader` and `db_datawriter`.
-- Secrets are injected into App Service settings and never stored in Git.
+Las variables privadas se guardan en el entorno de producción de la Static Web App, fuera del repositorio. Al terminar el acceso Azure SQL hay que configurar, como mínimo:
 
-## Current production gate
+- `AZURE_SQL_AUTH_MODE`, `AZURE_SQL_SERVER`, `AZURE_SQL_DATABASE`.
+- Credenciales privadas del principal Entra mapeado en Azure SQL, si el runtime Hybrid no ofrece identidad administrada para la aplicación.
+- `SESSION_SECRET` con al menos 32 caracteres aleatorios y `APP_URL=https://gentle-sky-060525010.4.azurestaticapps.net`.
+- Credenciales iniciales del administrador solo durante el aprovisionamiento; no mantener su contraseña de bootstrap como variable permanente.
+- `DATABASE_URL` solo si el build/runtime realmente lo requiere. `npm run build` no consulta la base; no inyectar una cadena productiva en GitHub Secrets por defecto.
 
-Al Corte has no App Service yet. Azure SQL `barber_sql` is paused, and `barberias.database.windows.net` has `publicNetworkAccess=Disabled`; no private endpoint was found. No hosting was created and nothing was deployed. A permitted network route must be established first. Then inspect the live schema/data and run all gates before production deployment.
+No versionar `.env` ni credenciales. Configurar en GitHub Secrets únicamente datos que un job de CI necesite durante build o migración; preferir federación OIDC para autenticar GitHub Actions en Azure. Los settings de build de Next.js y los settings de ejecución del hosting son ámbitos distintos: configurar ambos solo cuando la variable se use en ambos momentos.
+
+## Gate de base productiva
+
+Antes de migrar, obtener inventario de tablas y conteos de `barber_sql`, confirmar su estado Free Tier y que el overage siga deshabilitado, revisar copias/recuperación y reconciliar cualquier esquema existente. Luego habilitar una ruta aprobada para el principal de migración y probar conectividad. El script `npm run db:release` se detiene ante tablas de aplicación no reconocidas y verifica checksums; no aplicar una migración a ciegas.
+
+## Bloqueo conocido
+
+La última lectura de metadatos disponible indicó `barber_sql` pausada, `publicNetworkAccess=Disabled` y sin endpoint privado encontrado. La base no pudo inspeccionarse ni migrarse. Por tanto, migración, conectividad desde el runtime y smoke tests productivos aún no están demostrados. No hacer push de la release a `main` ni desplegar hasta completar esas verificaciones, mapear la identidad/credencial con permisos mínimos, configurar los settings en la SWA y pasar todas las pruebas concurrentes, de seguridad, E2E y health check.
