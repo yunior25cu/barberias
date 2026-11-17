@@ -4,7 +4,7 @@ test("reserva completa desde viewport móvil sin crear una cuenta",async({page})
   await page.getByRole("button",{name:/Corte de prueba E2E/}).click();await expect(page.getByRole("button",{name:"Cualquier profesional disponible"})).toBeVisible();await page.getByRole("button",{name:"Profesional E2E B"}).click();await page.getByRole("button",{name:/Elegir día y hora/}).click();
   const date=new Date(Date.now()+7*86400_000);const day=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Montevideo",year:"numeric",month:"2-digit",day:"2-digit"}).format(date);
   await page.getByLabel("Elegí un día").fill(day);await page.getByRole("button",{name:"09:00"}).click();await page.getByRole("button",{name:/Continuar/}).click();
-  await page.getByLabel("Tu nombre").fill("Ana Prueba");await page.getByLabel("Teléfono").fill("099 123 456");await page.getByRole("checkbox").check();await page.getByRole("button",{name:"Confirmar reserva"}).click();
+  await page.getByLabel("Tu nombre").fill("Ana Prueba");await page.getByLabel("Teléfono").fill("099 123 456");await page.getByRole("button",{name:"Confirmar reserva"}).click();
   await expect(page.getByRole("heading",{name:"¡Pronto nos vemos, Ana Prueba!"})).toBeVisible();await expect(page.getByText(/Código:/)).toBeVisible();
   await page.getByRole("button",{name:"Cambiar horario"}).click();const later=new Date(Date.now()+8*86400_000);const laterDay=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Montevideo",year:"numeric",month:"2-digit",day:"2-digit"}).format(later);await page.getByLabel("Elegí un día").fill(laterDay);await page.getByRole("button",{name:"09:00"}).click();await page.getByRole("button",{name:/Continuar/}).click();await page.getByRole("button",{name:"Cambiar horario"}).click();await expect(page.getByRole("heading",{name:"¡Pronto nos vemos, Ana Prueba!"})).toBeVisible();
   page.once("dialog",dialog=>dialog.accept());await page.getByRole("button",{name:"Cancelar reserva"}).click();await expect(page.getByText("La reserva quedó cancelada.")).toBeVisible();
@@ -39,7 +39,7 @@ test("las reservas HTTP concurrentes no permiten colisiones entre cliente y admi
   const slot = instant(sameSlotDay, 12);
   const publicBooking = page.request.post("/api/bookings", {
     headers: { "Idempotency-Key": `e2e-${crypto.randomUUID()}` },
-    data: { serviceId, staffId, startsAt: slot, name: "Concurrent public", phone: "099123456", privacyAccepted: true, manageToken: crypto.randomUUID() + crypto.randomUUID() },
+    data: { serviceId, staffId, startsAt: slot, name: "Concurrent public", phone: "099123456", manageToken: crypto.randomUUID() + crypto.randomUUID() },
   });
   const manualBooking = page.request.post("/api/admin/bookings", {
     data: { serviceId, staffId, startsAt: slot, name: "Concurrent admin", phone: "099123457" },
