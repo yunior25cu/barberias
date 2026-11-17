@@ -18,10 +18,19 @@ function diagnosticsAuthorized(request: Request) {
 function errorSummary(error: unknown) {
   const value = error && typeof error === "object" ? error as Record<string, unknown> : {};
   const cause = value.cause && typeof value.cause === "object" ? value.cause as Record<string, unknown> : {};
+  const redact = (message: unknown) => {
+    if (typeof message !== "string") return null;
+    return [process.env.AZURE_SQL_CLIENT_SECRET, process.env.SESSION_SECRET, process.env.DATABASE_URL]
+      .filter((secret): secret is string => Boolean(secret))
+      .reduce((safe, secret) => safe.split(secret).join("[redacted]"), message)
+      .slice(0, 1200);
+  };
   return {
     name: typeof value.name === "string" ? value.name : "UnknownError",
     code: typeof value.code === "string" ? value.code : null,
+    message: redact(value.message),
     causeCode: typeof cause.code === "string" ? cause.code : null,
+    causeMessage: redact(cause.message),
   };
 }
 
