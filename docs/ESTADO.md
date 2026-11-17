@@ -169,3 +169,16 @@ Para continuar esta fase hace falta resolver el destino de despliegue: alinear e
 - Causa raíz del batch: SQL Server no puede enlazar referencias a columnas recién agregadas más adelante en el mismo batch enviado por el driver. La migración ahora separa DDL y DML con `GO`; el runner divide esos batches y los ejecuta dentro de una sola transacción. `#before` conserva los conteos entre batches.
 - El run `44106008784` llegó al guard de baseline y detectó que el checksum de Git (`544c9107…`) difiere del checkout Windows (`4f5b6020…`) solo por finales de línea mixtos. El guard ahora admite únicamente ambos hashes del mismo archivo baseline; hashes ajenos continúan bloqueados.
 - El run `44106570976` superó el checksum y las validaciones DDL hasta compilar el trigger; falló porque `sp_getapplock` no admite concatenar directamente la expresión en `@Resource`. El trigger ahora construye el recurso en una variable `NVARCHAR(255)` antes de llamar al procedimiento.
+
+## Estado de implementación multi-tenant actualizado — 2026-11-17
+
+**`MULTITENANT_IMPLEMENTATION=PASS` en rama de integración; `PRODUCTION_CUT=BLOCKED`.**
+
+- Rama `integration/multi-tenant`, SHA `74b1d8c19c652c34f200b532462823c1997c64cf`; el árbol local quedó limpio después del push. `main` no se actualizó y no se ejecutó despliegue ni migración productiva.
+- GitHub Actions run `44115907090`: PASS para inspección/migración sobre SQL Server efímero con fixture legacy sintético, historial y constraints, `npm audit`, lint, typecheck, concurrencia SQL, 6/6 E2E y build.
+- `DOUBLE_BOOKING_PROTECTION=PASS` en SQL Server y HTTP concurrente. `SECURITY_GATE=PASS` para la auditoría ejecutada (0 vulnerabilidades en los runs de CI); los E2E administrativos ahora usan una lista permitida de origen que compara contra `APP_URL` configurado o el origen de la petición, exige `Origin` y rechaza `Sec-Fetch-Site: cross-site`.
+- Los E2E revelaron y verificaron dos fallos corregidos: origen de login rechazado por el host interno/proxy (403) y reasignación de reserva que violaba la FK compuesta de ocupación (P2003). Las rutas pública y administrativa ahora sustituyen la fila de ocupación y actualizan reserva dentro de la misma transacción; el rollback conserva la cita si alguna sentencia falla.
+- `DATABASE_MIGRATION=PASS` únicamente para la migración ensayada sobre base desechable. La base real `barber_sql` no se ha inspeccionado desde el cliente autorizado; su inventario, historial/checksums, conteos, restricciones y permisos siguen pendientes porque la conexión de este equipo está bloqueada por firewall. No extrapolar el resultado sintético a producción ni ejecutar allí migración.
+- El corte exige inspección de `barber_sql` desde un ejecutor con acceso autorizado, ensayo representativo, plan de restauración y coordinación con el operador. La rama SWA mantiene despliegue manual con confirmación; no desplegar desde la rama de integración.
+
+**Gates:** `DATABASE_MIGRATION=NOT PASS` para producción; `DOUBLE_BOOKING_PROTECTION=PASS` (CI); `SECURITY_GATE=PASS` (CI audit); `E2E=PASS` (6/6 CI); `BUILD=PASS` (CI); `AL_CORTE_PRODUCTION=NOT PASS`.
