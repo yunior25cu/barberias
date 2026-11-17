@@ -1,12 +1,13 @@
 import type { Prisma } from "@prisma/client";
 
-/** Serializes occupancy mutations across all app instances using Azure SQL's
- * transaction-scoped application lock. Call only from inside a transaction. */
-export async function lockOccupancy(tx: Prisma.TransactionClient): Promise<void> {
-  const rows = await tx.$queryRaw<{ result: number }[]>`
+/** Serializes occupancy writes for one business; call inside its SQL transaction. */
+export async function lockOccupancy(tx: Prisma.TransactionClient, businessId: string): Promise<void> {
+  if (!businessId) throw new Error("ACTIVE_BUSINESS_CONTEXT_REQUIRED");
+  const resource = `AlCorte:Occupancy:${businessId}`;
+  const rows = await tx.$queryRaw<{ result: number }[]> `
     DECLARE @result int;
     EXEC @result = sys.sp_getapplock
-      @Resource = N'AlCorte:Occupancy',
+      @Resource = ${resource},
       @LockMode = 'Exclusive',
       @LockOwner = 'Transaction',
       @LockTimeout = 15000;

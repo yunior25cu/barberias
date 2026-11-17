@@ -1,8 +1,5 @@
-import { z } from "zod";
-import { db } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
-import { error, json } from "@/lib/http";
-const schema=z.object({name:z.string().trim().min(2).max(80),serviceIds:z.array(z.string()).min(1).max(30)});
-export async function GET(){if(!await requireAdmin())return error("Iniciá sesión.",401);return json({staff:await db.staff.findMany({orderBy:{name:"asc"},include:{services:{include:{service:true}},hours:true}})});}
-export async function POST(request:Request){if(!await requireAdmin())return error("Iniciá sesión.",401);const body=schema.safeParse(await request.json().catch(()=>null));if(!body.success)return error("Ingresá un nombre y al menos un servicio.");try{return json(await db.staff.create({data:{name:body.data.name,services:{create:body.data.serviceIds.map(serviceId=>({serviceId}))}}}),201);}catch{return error("No pudimos crear el profesional. Verificá los servicios.",409);}}
-export async function PATCH(request:Request){if(!await requireAdmin())return error("Iniciá sesión.",401);const body=z.object({id:z.string(),name:z.string().trim().min(2).max(80).optional(),active:z.boolean().optional(),serviceIds:z.array(z.string()).max(30).optional()}).safeParse(await request.json().catch(()=>null));if(!body.success)return error("Revisá los datos del profesional.");const{id,serviceIds,...data}=body.data;try{await db.$transaction(async tx=>{await tx.staff.update({where:{id},data});if(serviceIds){await tx.staffService.deleteMany({where:{staffId:id}});if(serviceIds.length)await tx.staffService.createMany({data:serviceIds.map(serviceId=>({staffId:id,serviceId}))});}});return json({ok:true});}catch{return error("No pudimos actualizar el profesional.",409);}}
+import { handleGET, handlePOST, handlePATCH } from "@/lib/api-handlers/admin-staff";
+import { withInitialBusiness } from "@/lib/business-route";
+export function GET(request: Request) { return withInitialBusiness(business => handleGET(request, business)); }
+export function POST(request: Request) { return withInitialBusiness(business => handlePOST(request, business)); }
+export function PATCH(request: Request) { return withInitialBusiness(business => handlePATCH(request, business)); }

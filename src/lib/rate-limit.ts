@@ -8,7 +8,7 @@ export async function limited(request: Request, bucket: string, max: number, win
   const reset = new Date(now.getTime() + windowMs);
   try {
     const hits = await db.$transaction(async tx => {
-      const lock = await tx.$queryRaw<{ result: number }[]>`
+      const lock = await tx.$queryRaw<{ result: number }[]> `
         DECLARE @result int;
         EXEC @result = sys.sp_getapplock @Resource = ${`AlCorte:Rate:${key}`},
           @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 5000;
@@ -20,8 +20,9 @@ export async function limited(request: Request, bucket: string, max: number, win
         await tx.rateLimit.create({ data: { key, hits: 1, resetAt: reset } });
         return 1;
       }
-      const nextHits = existing.resetAt < now ? 1 : existing.hits + 1;
-      await tx.rateLimit.update({ where: { key }, data: { hits: nextHits, resetAt: existing.resetAt < now ? reset : existing.resetAt } });
+      const expired = existing.resetAt < now;
+      const nextHits = expired ? 1 : existing.hits + 1;
+      await tx.rateLimit.update({ where: { key }, data: { hits: nextHits, resetAt: expired ? reset : existing.resetAt } });
       return nextHits;
     });
     if (Math.random() < 0.01) await db.rateLimit.deleteMany({ where: { resetAt: { lt: new Date(now.getTime() - 86400_000) } } });
@@ -29,4 +30,12 @@ export async function limited(request: Request, bucket: string, max: number, win
   } catch {
     return null;
   }
+}
+
+export async function limitedForBusiness(
+  request: Request, businessId: string, bucket: string, max: number, windowMs: number, globalMax = Math.max(max * 4, 32),
+): Promise<boolean | null> {
+  const global = await limited(request, `global:${bucket}`, globalMax, windowMs);
+  if (global !== false) return global;
+  return limited(request, `tenant:${businessId}:${bucket}`, max, windowMs);
 }

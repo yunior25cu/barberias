@@ -1,3 +1,3 @@
-import { db } from "@/lib/db";
-import { error, json } from "@/lib/http";
-export async function GET(){try{const[rows,settings]=await Promise.all([db.service.findMany({where:{active:true},orderBy:{sortOrder:"asc"},include:{staff:{where:{staff:{active:true}},select:{staff:{select:{id:true,name:true}}}}}}),db.settings.findFirst()]);const services=rows.map(({staff,...service})=>({...service,staff:staff.map(item=>item.staff)}));return json({services,currency:settings?.currency??"UYU",cancellationPolicy:settings?.cancellationPolicy??"Consultá al local para cambiar o cancelar."});}catch{return error("No pudimos cargar los servicios. Probá de nuevo.",503);}}
+import { handleGET } from "@/lib/api-handlers/services";
+import { withInitialBusiness } from "@/lib/business-route";
+export function GET(request: Request) { return withInitialBusiness(business => handleGET(request, business)); }

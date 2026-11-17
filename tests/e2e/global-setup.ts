@@ -1,13 +1,88 @@
 import { loadEnvConfig } from "@next/env";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-export default async function globalSetup(){
-  loadEnvConfig(process.cwd());const connection=process.env.DATABASE_URL??"";if(!/^sqlserver:\/\/(localhost|127\.0\.0\.1)(:\d+)?;/i.test(connection)||!/(?:^|;)database=barber_local(?:;|$)/i.test(connection))throw new Error("E2E only runs against local SQL Server database barber_local.");
-  const db=new PrismaClient();try{
-    const serviceIds=(await db.service.findMany({where:{name:{in:["Corte de prueba E2E","Servicio prueba admin"]}},select:{id:true}})).map(x=>x.id);const staffIds=(await db.staff.findMany({where:{name:{in:["Profesional de prueba","Profesional E2E B","Profesional prueba admin"]}},select:{id:true}})).map(x=>x.id);await db.booking.deleteMany({where:{serviceId:{in:serviceIds}}});await db.timeBlock.deleteMany({where:{staffId:{in:staffIds}}});await db.staff.deleteMany({where:{id:{in:staffIds}}});await db.service.deleteMany({where:{id:{in:serviceIds}}});await db.adminUser.deleteMany({where:{username:"e2e-owner"}});await db.rateLimit.deleteMany({where:{key:{startsWith:"availability:"}}});await db.rateLimit.deleteMany({where:{key:{startsWith:"booking:"}}});await db.rateLimit.deleteMany({where:{key:{startsWith:"manage:"}}});await db.rateLimit.deleteMany({where:{key:{startsWith:"login:"}}});
-    await db.service.create({data:{id:"e2e-service",name:"Corte de prueba E2E",durationMinutes:30,active:true}});await db.staff.create({data:{id:"e2e-staff",name:"Profesional de prueba",services:{create:{serviceId:"e2e-service"}}}});
-    await db.businessHours.createMany({data:Array.from({length:7},(_,weekday)=>({id:`e2e-hours-${weekday}`,staffId:"e2e-staff",weekday,startMinute:8*60,endMinute:20*60}))});
-    await db.staff.create({data:{id:"e2e-staff-2",name:"Profesional E2E B",services:{create:{serviceId:"e2e-service"}}}});await db.businessHours.createMany({data:Array.from({length:7},(_,weekday)=>({id:`e2e-hours-b-${weekday}`,staffId:"e2e-staff-2",weekday,startMinute:8*60,endMinute:20*60}))});
-    await db.adminUser.create({data:{username:"e2e-owner",passwordHash:await bcrypt.hash("E2E-only-password-123!",4)}});
-  }finally{await db.$disconnect();}
+import { tokenHash } from "../../src/lib/security";
+
+export default async function globalSetup() {
+  loadEnvConfig(process.cwd());
+  const connection = process.env.DATABASE_URL ?? "";
+  if (!/^sqlserver:\/\/(localhost|127\.0\.0\.1)(:\d+)?;/i.test(connection) || !/(?:^|;)database=barber_local(?:;|$)/i.test(connection)) {
+    throw new Error("E2E only runs against local SQL Server database barber_local.");
+  }
+  const db = new PrismaClient();
+  const initialBusinessId = "al-corte";
+  const secondBusinessId = "e2e-business";
+  const allServiceIds = ["e2e-service", "e2e-service-b", "e2e-admin-service"];
+  const allStaffIds = ["e2e-staff", "e2e-staff-2", "e2e-staff-b", "e2e-admin-staff"];
+  try {
+    await db.booking.deleteMany({ where: { businessId: { in: [initialBusinessId, secondBusinessId] }, serviceId: { in: allServiceIds } } });
+    await db.timeBlock.deleteMany({ where: { businessId: { in: [initialBusinessId, secondBusinessId] }, staffId: { in: allStaffIds } } });
+    await db.occupancy.deleteMany({ where: { businessId: { in: [initialBusinessId, secondBusinessId] }, staffId: { in: allStaffIds } } });
+    await db.businessHours.deleteMany({ where: { businessId: { in: [initialBusinessId, secondBusinessId] }, staffId: { in: allStaffIds } } });
+    await db.staffService.deleteMany({ where: { businessId: { in: [initialBusinessId, secondBusinessId] }, staffId: { in: allStaffIds } } });
+    await db.staff.deleteMany({ where: { businessId: { in: [initialBusinessId, secondBusinessId] }, id: { in: allStaffIds } } });
+    await db.service.deleteMany({ where: { businessId: { in: [initialBusinessId, secondBusinessId] }, id: { in: allServiceIds } } });
+    await db.adminUser.deleteMany({ where: { username: "e2e-owner", businessId: { in: [initialBusinessId, secondBusinessId] } } });
+    await db.rateLimit.deleteMany({ where: { key: { startsWith: "tenant:" } } });
+    await db.rateLimit.deleteMany({ where: { key: { startsWith: "global:" } } });
+
+    await db.business.upsert({
+      where: { id: secondBusinessId }, update: { slug: "e2e-b", status: "active" },
+      create: { id: secondBusinessId, slug: "e2e-b", status: "active" },
+    });
+    await db.settings.upsert({
+      where: { businessId: secondBusinessId }, update: { businessName: "Negocio E2E B" },
+      create: { businessId: secondBusinessId, businessName: "Negocio E2E B" },
+    });
+    await db.service.create({ data: { id: "e2e-service", businessId: initialBusinessId, name: "Corte de prueba E2E", durationMinutes: 30, active: true } });
+    await db.staff.create({
+      data: { id: "e2e-staff", businessId: initialBusinessId, name: "Profesional de prueba" },
+    });
+    await db.staffService.create({ data: { businessId: initialBusinessId, staffId: "e2e-staff", serviceId: "e2e-service" } });
+    await db.businessHours.createMany({ data: Array.from({ length: 7 }, (_, weekday) => ({
+      id: `e2e-hours-${weekday}`, businessId: initialBusinessId, staffId: "e2e-staff", weekday, startMinute: 480, endMinute: 1200,
+    })) });
+    await db.staff.create({
+      data: { id: "e2e-staff-2", businessId: initialBusinessId, name: "Profesional E2E B" },
+    });
+    await db.staffService.create({ data: { businessId: initialBusinessId, staffId: "e2e-staff-2", serviceId: "e2e-service" } });
+    await db.businessHours.createMany({ data: Array.from({ length: 7 }, (_, weekday) => ({
+      id: `e2e-hours-b-${weekday}`, businessId: initialBusinessId, staffId: "e2e-staff-2", weekday, startMinute: 480, endMinute: 1200,
+    })) });
+    await db.service.create({ data: { id: "e2e-service-b", businessId: secondBusinessId, name: "Servicio solo B", durationMinutes: 30, active: true } });
+    await db.staff.create({
+      data: { id: "e2e-staff-b", businessId: secondBusinessId, name: "Profesional solo B" },
+    });
+    await db.staffService.create({ data: { businessId: secondBusinessId, staffId: "e2e-staff-b", serviceId: "e2e-service-b" } });
+    await db.businessHours.createMany({ data: Array.from({ length: 7 }, (_, weekday) => ({
+      id: `e2e-hours-only-b-${weekday}`, businessId: secondBusinessId, staffId: "e2e-staff-b", weekday, startMinute: 480, endMinute: 1200,
+    })) });
+    const passwordHash = await bcrypt.hash("E2E-only-password-123!", 4);
+    await db.adminUser.createMany({
+      data: [
+        { businessId: initialBusinessId, username: "e2e-owner", passwordHash },
+        { businessId: secondBusinessId, username: "e2e-owner", passwordHash },
+      ],
+    });
+
+    const sharedStart = new Date(Date.now() + 45 * 86_400_000);
+    sharedStart.setUTCHours(3, 0, 0, 0);
+    const sharedEnd = new Date(sharedStart.getTime() + 30 * 60_000);
+    const requestKey = "e2e-shared-idempotency";
+    for (const [businessId, bookingId, staffId, manageToken] of [
+      [initialBusinessId, "e2e-repeat-a", "e2e-staff", "e2e-manage-token-for-business-a"],
+      [secondBusinessId, "e2e-repeat-b", "e2e-staff-b", "e2e-manage-token-for-business-b"],
+    ]) {
+      const serviceId = businessId === initialBusinessId ? "e2e-service" : "e2e-service-b";
+      await db.booking.create({
+        data: {
+          id: bookingId, businessId, code: "222222", serviceId, staffId, customerName: "CI tenant fixture", phoneNormalized: "",
+          startsAt: sharedStart, endsAt: sharedEnd, manageTokenHash: tokenHash(manageToken), idempotencyKey: requestKey,
+        },
+      });
+      await db.occupancy.create({ data: { id: `${bookingId}-occupancy`, businessId, staffId, bookingId, startsAt: sharedStart, endsAt: sharedEnd } });
+    }
+  } finally {
+    await db.$disconnect();
+  }
 }

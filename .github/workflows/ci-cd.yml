@@ -2,7 +2,7 @@ name: Al Corte Quality Gates
 
 on:
   push:
-    branches: [barber]
+    branches: [barber, integration/multi-tenant]
   pull_request:
     branches: [main]
   workflow_call:
@@ -64,10 +64,18 @@ jobs:
         run: node scripts/create-local-sqlserver-db.mjs
       - name: Inspect before migrating
         run: npm run db:inspect
-      - name: Apply SQL Server migrations
+      - name: Apply reviewed legacy SQL Server baseline
+        env:
+          ALCORTE_MIGRATION_TARGET: 20261117010000_init_sqlserver
+        run: npm run db:release
+      - name: Seed synthetic populated legacy schema
+        run: node scripts/seed-legacy-multitenant-fixture.mjs
+      - name: Apply incremental tenant migration
         run: npm run db:release
       - name: Verify Prisma migration history
         run: npx prisma migrate status
+      - name: Verify preserved data and tenant constraints
+        run: node scripts/verify-multitenant-migration.mjs
       - name: Provision disposable test administrator
         run: npm run db:seed
       - name: Lint
