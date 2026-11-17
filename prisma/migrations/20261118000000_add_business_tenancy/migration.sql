@@ -79,7 +79,7 @@ UPDATE dbo.StaffService SET businessId=N'al-corte';
 UPDATE dbo.BusinessHours SET businessId=N'al-corte';
 UPDATE dbo.Booking SET businessId=N'al-corte';
 UPDATE dbo.TimeBlock SET businessId=N'al-corte';
-UPDATE dbo.Occupancy SET businessId=N'al-corte';
+EXEC sys.sp_executesql N'UPDATE dbo.Occupancy SET businessId=N''al-corte'';';
 
 IF EXISTS (SELECT 1 FROM dbo.StaffService ss LEFT JOIN dbo.Staff s ON s.id=ss.staffId LEFT JOIN dbo.Service v ON v.id=ss.serviceId WHERE s.id IS NULL OR v.id IS NULL)
   THROW 51105, 'A staff-service relation has no valid source row; stop before tenant migration.', 1;
@@ -89,8 +89,9 @@ IF EXISTS (SELECT 1 FROM dbo.BusinessHours h LEFT JOIN dbo.Staff s ON s.id=h.sta
   THROW 51107, 'A business-hours row has no valid staff; stop before tenant migration.', 1;
 IF EXISTS (SELECT 1 FROM dbo.TimeBlock t LEFT JOIN dbo.Staff s ON s.id=t.staffId WHERE s.id IS NULL)
   THROW 51108, 'A time block has no valid staff; stop before tenant migration.', 1;
-IF EXISTS (SELECT 1 FROM dbo.Occupancy o WHERE o.businessId<>N'al-corte')
-  THROW 51109, 'Legacy occupancy could not be assigned unambiguously to the initial business.', 1;
+EXEC sys.sp_executesql N'
+IF EXISTS (SELECT 1 FROM dbo.Occupancy o WHERE o.businessId<>N''al-corte'')
+  THROW 51109, ''Legacy occupancy could not be assigned unambiguously to the initial business.'', 1;';
 
 ALTER TABLE dbo.StaffService DROP CONSTRAINT FK_StaffService_Staff;
 ALTER TABLE dbo.StaffService DROP CONSTRAINT FK_StaffService_Service;
