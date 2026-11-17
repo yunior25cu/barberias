@@ -204,7 +204,7 @@ AFTER INSERT, UPDATE
 AS
 BEGIN
  SET NOCOUNT ON;
- DECLARE @businessId NVARCHAR(40), @lockResult INT;
+ DECLARE @businessId NVARCHAR(40), @lockResult INT, @resource NVARCHAR(255);
  IF EXISTS (SELECT 1 FROM inserted i JOIN deleted d ON d.id=i.id WHERE d.businessId<>i.businessId)
    THROW 51002, ''Occupancy business assignment cannot be changed.'', 1;
  DECLARE business_locks CURSOR LOCAL FAST_FORWARD FOR
@@ -213,8 +213,9 @@ BEGIN
  FETCH NEXT FROM business_locks INTO @businessId;
  WHILE @@FETCH_STATUS=0
  BEGIN
+   SET @resource=N''AlCorte:Occupancy:''+@businessId;
    EXEC @lockResult=sys.sp_getapplock
-     @Resource=N''AlCorte:Occupancy:''+@businessId,
+     @Resource=@resource,
      @LockMode=''Exclusive'', @LockOwner=''Transaction'', @LockTimeout=15000;
    IF @lockResult<0 THROW 51000, ''Could not lock appointment occupancy.'', 1;
    FETCH NEXT FROM business_locks INTO @businessId;
