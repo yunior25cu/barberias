@@ -1,0 +1,2 @@
+import { defineConfig, devices } from "@playwright/test";
+export default defineConfig({ testDir:"./tests/e2e", globalSetup:"./tests/e2e/global-setup.ts", globalTeardown:"./tests/e2e/global-teardown.ts", fullyParallel:false, reporter:"list", use:{baseURL:"http://127.0.0.1:3000",...devices["iPhone 13"],browserName:"chromium"}, webServer:{command:"npm run dev",url:"http://127.0.0.1:3000",reuseExistingServer:!process.env.CI,timeout:120_000} });

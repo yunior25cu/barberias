@@ -1,0 +1,77 @@
+# Estado de implementación
+
+Actualizado: 2026-11-17
+
+## Fase 0 — Inspección y plan
+
+**PHASE_0=PASS**
+
+- La carpeta inicial tenía solo `PROMT MAETSTRO AL CORTE.md`; se leyó completo y se conservó.
+- Node 22.22.0, npm 10.9.4, Git 2.49.0 y Docker 29.8.0 disponibles.
+- El puerto 5432 ya estaba usado por PostgreSQL del equipo; Compose publica su DB de desarrollo en 55439 para no interferir.
+- Stack fijado en `package.json`/lockfile: Next.js 16.4.6, React 19.3.1, TypeScript 5.9.3, Prisma 6.19.3, PostgreSQL 17.12, Vitest 4.0.8 y Playwright 1.56.1.
+
+## Fase 1 — Base técnica y diseño
+
+**PHASE_1=PASS**
+
+- Next App Router, TypeScript estricto, ESLint, configuración de entorno, cabeceras de seguridad, CSP de producción, logs JSON con request ID y `/api/health`.
+- Dos migraciones Prisma aplicadas correctamente al PostgreSQL local. La primera crea el modelo relacional y la restricción de exclusión GiST; la segunda añade moneda configurable.
+- `docker compose up -d db` inicia PostgreSQL. Instalación, lint, tipado, pruebas y build están documentados.
+- Verificación: `npx prisma validate` PASS; `npm run db:deploy` PASS (2 migraciones); `npm run build` PASS.
+
+## Fase 2 — Configuración y admin
+
+**PHASE_2=PASS para el alcance implementado**
+
+- Login admin con bcrypt, cookie HttpOnly/SameSite Strict, Secure en producción y limitador persistente de intentos.
+- Panel protegido con agenda diaria/semanal, reserva manual, mover/reasignar, cancelar, completar y no-show.
+- ABM de servicios (nombre, duración, precio, activar/pausar); equipo y servicios por profesional; horarios semanales/cierres; pausas/bloqueos; configuración de negocio, moneda, anticipación y granularidad.
+- Enlace público y texto de bienvenida copiables desde ajustes. La interfaz explica que WhatsApp Business App se configura a mano y decide cuándo muestra el saludo.
+- E2E móvil comprobó acceso anónimo rechazado, login, servicio/equipo, horario, bloqueo, reserva manual y movimiento.
+
+## Fase 3 — Reserva pública y concurrencia
+
+**PHASE_3=PASS para los flujos cubiertos**
+
+- Flujo de cuatro pasos sin cuenta, selección opcional de profesional o “Cualquier profesional disponible”, teléfono normalizado, consentimiento, duración real y hora de Montevideo.
+- Persistencia transaccional, clave idempotente y constraint PostgreSQL de intervalos semiabiertos sobre cada profesional. Reserva y bloqueos compiten por el mismo recurso.
+- Token de gestión aleatorio de 256 bits almacenado como hash; cancelación y reprogramación sin token en URL. Enlace `wa.me` manual, sin envío automatizado.
+- Evidencia de concurrencia real: dos transacciones simultáneas para el mismo recurso/período; exactamente una reservó.
+- E2E en viewport iPhone recorrió reserva, reprogramación y cancelación.
+
+## Fase 4 — Agenda y operaciones
+
+**PHASE_4=PASS para el alcance del MVP especificado**
+
+- Agenda de día/semana, tareas manuales, cambios de estado, movimiento/reasignación y bloqueos modifican la misma fuente de verdad que usa la disponibilidad pública.
+- Pruebas E2E también verifican la configuración administrativa necesaria para operar la agenda.
+
+## Fase 5 — Endurecimiento y producción
+
+**PHASE_5=NOT PASS — endurecimiento parcial**
+
+- Incluido: validación de servidor con Zod, rate limits de disponibilidad/reservas/login/gestión, cookies seguras, cabeceras/CSP, logs sin PII, health check, auditoría `npm audit` sin vulnerabilidades.
+- Backup/restauración probada localmente: `pg_dump -Fc`, restauración en base temporal y confirmación de 11 tablas y `occupancy_no_overlap`; base temporal y dump eliminados al terminar.
+- Pendiente: matriz amplia de pruebas de abuso/CSRF/tokens, revisión manual WCAG/teclado/contraste, retención automatizada de datos, monitoreo/alertas y simulacro de caída/rollback en entorno de despliegue.
+
+## Fase 6 — Despliegue y entrega
+
+**PHASE_6=NOT PASS — no hay entorno externo autorizado/configurado**
+
+- README y guía de despliegue están preparados; no se inventó dominio, proveedor ni credenciales y no se publicó la aplicación.
+- Para completar esta fase hace falta elegir/proveer el host PostgreSQL/Node, dominio y secretos de producción. El sistema sí puede ejecutarse localmente.
+
+## Verificación consolidada más reciente
+
+- `npm run lint`: PASS, sin advertencias.
+- `npm run typecheck`: PASS.
+- `npm test` con `RUN_DB_TESTS=1` y PostgreSQL local: 6 PASS (5 unitarias + 1 integración de concurrencia).
+- `npm run test:e2e`: 2 PASS en Chromium con emulación de iPhone.
+- `npm run build`: PASS.
+- `npm audit`: 0 vulnerabilidades.
+- `npx prisma validate` y `npm run db:deploy`: PASS; 2 migraciones aplicadas.
+
+## Criterio global
+
+**AL_CORTE_MVP=NOT PASS** hasta terminar Fase 5 y desplegar de forma autorizada en Fase 6. La agenda, el flujo móvil y la protección contra dobles reservas tienen evidencia real local; no hay URL de producción ni alertas operativas.

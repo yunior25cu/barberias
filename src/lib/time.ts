@@ -1,0 +1,7 @@
+const zone="America/Montevideo";
+function parts(date:Date){return new Intl.DateTimeFormat("en-CA",{timeZone:zone,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(date).reduce<Record<string,string>>((result,part)=>(result[part.type]=part.value,result),{});}
+export function localDateKey(date:Date){const p=parts(date);return `${p.year}-${p.month}-${p.day}`;}
+export function localWeekday(date:Date){const[y,m,d]=localDateKey(date).split("-").map(Number);return new Date(Date.UTC(y,m-1,d)).getUTCDay();}
+export function localMinute(date:Date){const p=parts(date);return Number(p.hour)*60+Number(p.minute);}
+export function localToUtc(dateKey:string,minute:number){const[y,m,d]=dateKey.split("-").map(Number);const minuteOfDay=((minute%1440)+1440)%1440;const utcGuess=Date.UTC(y,m-1,d,Math.floor(minuteOfDay/60),minuteOfDay%60);const p=parts(new Date(utcGuess));let offset=(Number(p.hour)*60+Number(p.minute))-(Math.floor(minuteOfDay/60)*60+minuteOfDay%60);if(offset>720)offset-=1440;if(offset< -720)offset+=1440;let result=new Date(utcGuess-offset*60_000);const check=parts(result);const actual=Number(check.hour)*60+Number(check.minute);if(actual!==minuteOfDay){offset+=(actual-minuteOfDay);result=new Date(utcGuess-offset*60_000);}return result;}
+export function overlaps(start:Date,end:Date,otherStart:Date,otherEnd:Date){return start<otherEnd&&end>otherStart;}

@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: alcorte
+      POSTGRES_USER: alcorte
+      POSTGRES_PASSWORD: alcorte
+    ports:
+      - "55439:5432"
+    volumes:
+      - alcorte_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alcorte -d alcorte"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  alcorte_pg:
