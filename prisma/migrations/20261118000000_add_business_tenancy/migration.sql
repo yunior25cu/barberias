@@ -48,7 +48,12 @@ CREATE TABLE dbo.Business (
  [status] NVARCHAR(16) NOT NULL CONSTRAINT DF_Business_status DEFAULT N'active',
  [createdAt] DATETIME2 NOT NULL CONSTRAINT DF_Business_createdAt DEFAULT CURRENT_TIMESTAMP,
  CONSTRAINT PK_Business PRIMARY KEY CLUSTERED ([id]),
- CONSTRAINT CK_Business_slug CHECK ([slug]=LOWER([slug]) AND LEN([slug]) BETWEEN 1 AND 63),
+ CONSTRAINT CK_Business_slug CHECK (
+   [slug] COLLATE Latin1_General_100_BIN2 = LOWER([slug]) COLLATE Latin1_General_100_BIN2
+   AND [slug] COLLATE Latin1_General_100_BIN2 NOT LIKE N'%[^a-z0-9-]%'
+   AND [slug] NOT LIKE N'-%' AND [slug] NOT LIKE N'%-' AND [slug] NOT LIKE N'%--%'
+   AND LEN([slug]) BETWEEN 1 AND 63
+ ),
  CONSTRAINT CK_Business_status CHECK ([status] IN (N'active',N'inactive'))
 );
 CREATE UNIQUE INDEX Business_slug_key ON dbo.Business([slug]);
@@ -117,7 +122,9 @@ ALTER TABLE dbo.Booking ALTER COLUMN businessId NVARCHAR(40) NOT NULL;
 ALTER TABLE dbo.TimeBlock ALTER COLUMN businessId NVARCHAR(40) NOT NULL;
 ALTER TABLE dbo.Occupancy ALTER COLUMN businessId NVARCHAR(40) NOT NULL;
 ALTER TABLE dbo.Settings ALTER COLUMN businessId NVARCHAR(40) NOT NULL;
+ALTER TABLE dbo.RateLimit DROP CONSTRAINT PK_RateLimit;
 ALTER TABLE dbo.RateLimit ALTER COLUMN [key] NVARCHAR(160) NOT NULL;
+ALTER TABLE dbo.RateLimit ADD CONSTRAINT PK_RateLimit PRIMARY KEY CLUSTERED ([key]);
 
 ALTER TABLE dbo.Settings ADD CONSTRAINT PK_Settings PRIMARY KEY CLUSTERED ([businessId]);
 ALTER TABLE dbo.AdminUser ADD CONSTRAINT FK_AdminUser_Business FOREIGN KEY ([businessId]) REFERENCES dbo.Business([id]);
