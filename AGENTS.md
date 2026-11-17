@@ -2,7 +2,7 @@
 
 - Interfaz y mensajes en español rioplatense claro; zona del negocio `America/Montevideo`.
 - TypeScript estricto. Validar todos los datos en servidor; no confiar en disponibilidad del navegador.
-- PostgreSQL es la fuente de verdad. Cambios de reservas/bloqueos deben ser transaccionales y respetar la exclusión GiST de `Occupancy`.
+- Azure SQL es el destino de producción. Las mutaciones de reservas/bloqueos deben usar transacciones y `sp_getapplock`; la migración SQL conserva una defensa de solapamientos en `Occupancy`.
 - Datos de clientes mínimos; no incluir teléfono, nombre ni tokens en logs o URLs.
 - Nunca integrar APIs/proveedores de WhatsApp, bots o envío automático. Solo enlaces estándar `wa.me` iniciados por la persona.
 - No versionar `.env`, secretos, dumps ni datos reales.

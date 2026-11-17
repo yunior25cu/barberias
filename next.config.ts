@@ -1,5 +1,11 @@
 import type { NextConfig } from "next";
 const securityHeaders=[{key:"X-Content-Type-Options",value:"nosniff"},{key:"Referrer-Policy",value:"strict-origin-when-cross-origin"},{key:"X-Frame-Options",value:"DENY"},{key:"Permissions-Policy",value:"camera=(), microphone=(), geolocation=()"}];
 if(process.env.NODE_ENV==="production")securityHeaders.push({key:"Content-Security-Policy",value:"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'"});
-const config: NextConfig = { poweredByHeader: false, allowedDevOrigins: ["127.0.0.1"], headers: async () => [{ source: "/:path*", headers: securityHeaders }] };
+const config: NextConfig = {
+  output: "standalone",
+  serverExternalPackages: ["@prisma/adapter-mssql", "mssql", "tedious", "@azure/identity", "open", "powershell-utils", "wsl-utils"],
+  poweredByHeader: false,
+  allowedDevOrigins: ["127.0.0.1"],
+  headers: async () => [{ source: "/:path*", headers: securityHeaders }],
+};
 export default config;

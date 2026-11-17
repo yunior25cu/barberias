@@ -1,0 +1,145 @@
+name: Al Corte CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [main, barber]
+  workflow_dispatch:
+    inputs:
+      deploy_production:
+        description: Deploy to the Al Corte production App Service after every gate passes
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: AlCorte-CI-Sql-2026!
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'AlCorte-CI-Sql-2026!' -Q 'SELECT 1' -b"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 30s
+    env:
+      DATABASE_URL: sqlserver://localhost:1433;database=barber_local;user=sa;password=AlCorte-CI-Sql-2026!;encrypt=true;trustServerCertificate=true
+      MSSQL_SA_PASSWORD: AlCorte-CI-Sql-2026!
+      SESSION_SECRET: 0123456789abcdef0123456789abcdef-ci-only
+      ADMIN_USERNAME: ci-owner
+      ADMIN_PASSWORD: Ci-only-password-2026!
+      APP_URL: http://127.0.0.1:3000
+      SEED_DEMO_DATA: "false"
+      RUN_DB_TESTS: "1"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: Security audit
+        run: npm audit --audit-level=moderate
+      - name: Create isolated test database
+        run: node scripts/create-local-sqlserver-db.mjs
+      - name: Inspect before migrating
+        run: npm run db:inspect
+      - name: Apply SQL Server migrations
+        run: npm run db:release
+      - name: Verify Prisma migration history
+        run: npx prisma migrate status
+      - name: Provision disposable test administrator
+        run: npm run db:seed
+      - name: Lint and typecheck
+        run: |
+          npm run lint
+          npm run typecheck
+      - name: Unit and real SQL Server concurrency tests
+        run: npm test
+      - name: Browser setup
+        run: npx playwright install --with-deps chromium
+      - name: HTTP and functional E2E tests
+        run: npm run test:e2e
+      - name: Production build
+        run: npm run build
+      - name: Assemble standalone Node artifact
+        run: |
+          mkdir -p .next/standalone/.next
+          cp -R .next/static .next/standalone/.next/static
+          if [ -d public ]; then cp -R public .next/standalone/public; fi
+          cd .next/standalone && zip -qr ../../alcorte-app.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alcorte-node-standalone
+          path: alcorte-app.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy-production:
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_production && github.ref == 'refs/heads/main'
+    needs: quality-gates
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      DATABASE_URL: sqlserver://${{ vars.AZURE_SQL_SERVER }}:1433;database=${{ vars.AZURE_SQL_DATABASE }};encrypt=true;
+      AZURE_SQL_AUTH_MODE: service-principal
+      AZURE_SQL_SERVER: ${{ vars.AZURE_SQL_SERVER }}
+      AZURE_SQL_DATABASE: ${{ vars.AZURE_SQL_DATABASE }}
+      AZURE_SQL_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_SQL_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_SQL_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+      ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      APP_URL: ${{ vars.APP_URL }}
+      SEED_DEMO_DATA: "false"
+      NODE_ENV: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: Inspect live database; stop if it already contains application tables
+        run: npm run db:release
+      - name: Provision administrator without demo records
+        run: npm run db:seed
+      - uses: actions/download-artifact@v4
+        with:
+          name: alcorte-node-standalone
+          path: deploy
+      - name: Configure App Service settings from GitHub environment secrets
+        env:
+          APP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: |
+          az login --service-principal --username "$AZURE_CLIENT_ID" --password "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID" --subscription "$AZURE_SUBSCRIPTION_ID"
+          az webapp identity assign --resource-group "$RESOURCE_GROUP" --name "$APP_NAME"
+          az webapp config set --resource-group "$RESOURCE_GROUP" --name "$APP_NAME" --linux-fx-version 'NODE|22-lts' --startup-file 'node server.js'
+          az webapp config appsettings set --resource-group "$RESOURCE_GROUP" --name "$APP_NAME" --settings "DATABASE_URL=$DATABASE_URL" "AZURE_SQL_AUTH_MODE=managed-identity" "AZURE_SQL_SERVER=$AZURE_SQL_SERVER" "AZURE_SQL_DATABASE=$AZURE_SQL_DATABASE" "SESSION_SECRET=$SESSION_SECRET" "ADMIN_USERNAME=$ADMIN_USERNAME" "ADMIN_PASSWORD=$ADMIN_PASSWORD" "APP_URL=$APP_URL" "NODE_ENV=production" "WEBSITE_NODE_DEFAULT_VERSION=~22" "PORT=8080" "WEBSITE_RUN_FROM_PACKAGE=1"
+      - name: Grant App Service identity least-privilege SQL roles
+        env:
+          AZURE_SQL_APP_IDENTITY_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+        run: node scripts/grant-app-identity.mjs
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          package: deploy/alcorte-app.zip
+          startup-command: node server.js

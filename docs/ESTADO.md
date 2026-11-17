@@ -92,3 +92,18 @@ Actualizado: 2026-11-17
 - No se crearon recursos, no se cambió el nivel ni el comportamiento de facturación de SQL y no se configuró una API paga de WhatsApp.
 
 Para continuar esta fase hace falta resolver el destino de despliegue: alinear el proyecto con Azure SQL + .NET/React/Vite, o confirmar un hosting compatible con la arquitectura existente; habilitar escritura al repo GitHub; y provisionar los destinos frontend/backend requeridos. El endurecimiento de seguridad permanece diferido según la instrucción del usuario.
+
+## Fase Azure SQL y preparacion de produccion - 2026-11-17 (actualiza el estado anterior)
+
+- Decision confirmada: `ARCHITECTURE_DECISION=KEEP_NEXTJS_AND_ADAPT_DATABASE`.
+- `barber_local` en SQL Server Express se inspecciono antes de migrar: estaba `ONLINE` y sin tablas. `prisma migrate deploy` aplico la migracion SQL Server; `prisma migrate status` confirmo esquema actualizado.
+- `DOUBLE_BOOKING_PROTECTION=PASS` en local: dos transacciones concurrentes con el lock de aplicacion y dos inserciones directas concurrentes protegidas por el trigger SQL aceptaron una sola ocupacion cada vez.
+- Pruebas HTTP concurrentes: `PASS` para cliente publico contra reserva manual admin y para dos reprogramaciones concurrentes al mismo destino.
+- `E2E=PASS`: 3/3 escenarios. Incluye reserva publica/cancelacion, servicios/profesionales/horarios/bloqueos/agenda y colisiones HTTP. El estado de horarios inicializa seleccion y valores de forma atomica para evitar la carrera anterior.
+- `LINT=PASS`, `TYPECHECK=PASS`, `BUILD=PASS`, `UNIT_AND_INTEGRATION=PASS` (7/7), `NPM_AUDIT=PASS` (0 vulnerabilidades). Zod quedo en 4.6.6, Vitest en 4.1.12 y `deepmerge-ts` 8.0.0 se fija por override; se anadio el adaptador Prisma para autenticacion Entra.
+- Prisma usa `provider=mssql`, `DateTimeOffset`, cadenas de estado con check SQL y limites de longitud. Las migraciones PostgreSQL quedaron archivadas fuera del historial activo. Rate limit y todos los escritores de ocupacion usan `sp_getapplock`; el trigger SQL es la defensa final contra solapamientos.
+- Runtime planeado para Azure SQL usa identidad administrada de App Service. El job de migracion aplica el mismo SQL con autenticacion Entra de principal de servicio, registra en `_prisma_migrations` e inspecciona nombres/conteos antes de migrar.
+- `barber_sql` se consulto a nivel de metadatos Azure: `Paused`, `useFreeLimit=true`, `publicNetworkAccess=Disabled`, servidor AzureAdOnly. La inspeccion de tablas/datos no se pudo completar porque no hay ruta publica ni endpoint privado accesible; no se aplico ni se intento aplicar una migracion remota.
+- No hay App Service/SWA de Al Corte. Los recursos web hallados en la suscripcion son de otros proyectos y no se reutilizan. No se crearon recursos ni se desplego.
+- `AL_CORTE_PRODUCTION=NOT PASS`. Bloqueos: inspeccion y migracion remotas sin acceso a SQL; registro/mapeo de los principales Entra de despliegue y runtime en la base aun no verificado; hosting Al Corte y sus settings aun no existen. El workflow `ci-cd.yml` solo habilita produccion manualmente desde `main`, tras gates verdes, y se detiene ante esquema no reconciliado.
+- `RELEASE_RUNNER=PASS` local: the Entra-capable migration runner applied the current SQL file to a fresh temporary SQL Server database; `prisma migrate status` recognized its `_prisma_migrations` row. The temporary database and SQL login were removed afterward. The same runner was idempotent against `barber_local`.

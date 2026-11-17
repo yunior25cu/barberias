@@ -14,19 +14,24 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:seed": "node prisma/seed.mjs"
+    "db:seed": "node prisma/seed.mjs",
+    "db:local": "powershell -ExecutionPolicy Bypass -File scripts/db-local.ps1",
+    "db:inspect": "node scripts/inspect-sqlserver.mjs",
+    "db:release": "node scripts/release-sqlserver.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
+    "@prisma/adapter-mssql": "6.19.3",
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.2",
+    "mssql": "11.0.2",
     "next": "^16.4.6",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "zod": "^4.1.12"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
@@ -37,6 +42,9 @@
     "eslint-config-next": "^16.4.6",
     "prisma": "^6.19.3",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.8"
+    "vitest": "4.1.12"
+  },
+  "overrides": {
+    "deepmerge-ts": "8.0.0"
   }
 }

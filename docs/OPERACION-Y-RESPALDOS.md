@@ -1,19 +1,13 @@
 # Operación, respaldos y recuperación
 
-## Respaldo
+## Backups
 
-En producción, configurar `pg_dump -Fc` diario, cifrar el archivo antes de transferirlo a almacenamiento privado separado de la base y conservar 30 copias diarias más 12 mensuales. Restringir acceso y definir quién custodia la clave. No usar datos reales en desarrollo.
-
-Ejemplo manual (ejecutar con variables seguras en el host; nunca poner contraseña en la línea de comandos):
-
-```sh
-pg_dump --format=custom --no-owner "$DATABASE_URL" > alcorte-$(date -u +%F).dump
-```
+Azure SQL administra los backups de la base. Antes de producción, definir y verificar la retención de recuperación a un punto en el tiempo y copias de largo plazo según la política del negocio. El estado actual reporta retención LTR de cero; debe configurarse antes del lanzamiento si se requieren copias de largo plazo. No usar datos reales en desarrollo.
 
 ## Restauración de prueba
 
-Crear una base vacía aislada y restaurar el dump con `pg_restore --clean --if-exists --no-owner --dbname "$RESTORE_URL" archivo.dump`. Ejecutar `npm run db:deploy`, comprobar `GET /api/health`, recuentos operativos y que la restricción `occupancy_no_overlap` exista. Hacer este simulacro al menos trimestralmente y registrar fecha, duración y resultado. No restaurar encima de producción durante una prueba.
+Restaurar a una base aislada, inspeccionar el esquema y ejecutar `npm run db:deploy`. Verificar `/api/health`, horarios, reservas y el trigger `TR_Occupancy_NoOverlap`. No restaurar encima de producción durante una prueba.
 
 ## Incidentes
 
-Ante caída, revisar `/api/health`, disponibilidad de PostgreSQL y logs del proceso sin copiar datos personales a tickets. Para recuperar acceso admin, usar el flujo seguro de provisión y rotar contraseña/`SESSION_SECRET`; cambiar la clave invalida sesiones activas. Para actualizar, respaldar primero, desplegar migraciones y verificar salud antes de reabrir reservas.
+Ante una caída, revisar `/api/health`, disponibilidad de Azure SQL y logs del proceso sin copiar datos personales a tickets. Para revocar sesiones, rotar `SESSION_SECRET`; para rotar acceso administrador, actualizar el secreto y volver a ejecutar la provisión controlada. Desplegar migraciones antes de abrir tráfico y verificar salud después.

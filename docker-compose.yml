@@ -1,19 +1,21 @@
 services:
   db:
-    image: postgres:17-alpine
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: alcorte-sqlserver
     restart: unless-stopped
     environment:
-      POSTGRES_DB: alcorte
-      POSTGRES_USER: alcorte
-      POSTGRES_PASSWORD: alcorte
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in your local environment}
     ports:
-      - "55439:5432"
+      - "1433:1433"
     volumes:
-      - alcorte_pg:/var/lib/postgresql/data
+      - alcorte_sql:/var/opt/mssql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U alcorte -d alcorte"]
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -b"]
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 volumes:
-  alcorte_pg:
+  alcorte_sql:

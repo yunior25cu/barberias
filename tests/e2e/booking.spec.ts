@@ -21,3 +21,42 @@ test("el panel protege el acceso y permite mantener servicios y equipo",async({p
   await page.getByRole("button",{name:"Agenda"}).click();await page.getByLabel("Fecha de agenda").fill(day);await page.getByRole("button",{name:/Reserva manual/}).click();const manualForm=page.locator("form").filter({has:page.getByRole("heading",{name:"Nueva reserva"})});await manualForm.getByLabel("Servicio").selectOption({label:"Servicio prueba admin"});await manualForm.getByLabel("Profesional").selectOption({label:"Profesional prueba admin"});await manualForm.getByLabel("Día").fill(day);await manualForm.getByLabel("Hora").fill("10:00");await manualForm.getByLabel("Nombre").fill("Cliente manual");await manualForm.getByLabel("Teléfono").fill("099 222 333");await manualForm.getByRole("button",{name:"Guardar reserva"}).click();await expect(page.getByText("Cliente manual")).toBeVisible();
   await page.getByRole("button",{name:"Mover / reasignar"}).click();await page.getByLabel("Hora",{exact:true}).fill("11:00");await page.getByRole("button",{name:"Guardar cambio"}).click();await expect(page.getByText("11:00")).toBeVisible();
 });
+
+test("las reservas HTTP concurrentes no permiten colisiones entre cliente y administración ni entre reprogramaciones", async ({ page }) => {
+  await page.goto("/admin");
+  await page.getByLabel("Usuario").fill("e2e-owner");
+  await page.getByLabel("Contraseña").fill("E2E-only-password-123!");
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.getByRole("heading", { name: "Agenda del día" })).toBeVisible();
+
+  const dayFor = (daysAhead: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Montevideo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + daysAhead * 86400_000));
+  const instant = (day: string, hour: number) => new Date(`${day}T${String(hour + 3).padStart(2, "0")}:00:00.000Z`).toISOString();
+  const serviceId = "e2e-service";
+  const staffId = "e2e-staff";
+  const sameSlotDay = dayFor(12);
+  const slot = instant(sameSlotDay, 12);
+  const publicBooking = page.request.post("/api/bookings", {
+    headers: { "Idempotency-Key": `e2e-${crypto.randomUUID()}` },
+    data: { serviceId, staffId, startsAt: slot, name: "Concurrent public", phone: "099123456", privacyAccepted: true, manageToken: crypto.randomUUID() + crypto.randomUUID() },
+  });
+  const manualBooking = page.request.post("/api/admin/bookings", {
+    data: { serviceId, staffId, startsAt: slot, name: "Concurrent admin", phone: "099123457" },
+  });
+  const mixedResults = await Promise.all([publicBooking, manualBooking]);
+  expect(mixedResults.filter(result => [200, 201].includes(result.status()))).toHaveLength(1);
+  expect(mixedResults.filter(result => result.status() === 409)).toHaveLength(1);
+
+  const moveDay = dayFor(14);
+  const sourceOne = await page.request.post("/api/admin/bookings", { data: { serviceId, staffId, startsAt: instant(moveDay, 9), name: "Move source A", phone: "099123458" } });
+  const sourceTwo = await page.request.post("/api/admin/bookings", { data: { serviceId, staffId, startsAt: instant(moveDay, 10), name: "Move source B", phone: "099123459" } });
+  expect(sourceOne.status()).toBe(201);
+  expect(sourceTwo.status()).toBe(201);
+  const first = (await sourceOne.json()).booking;
+  const second = (await sourceTwo.json()).booking;
+  const destination = instant(moveDay, 12);
+  const moves = await Promise.all([
+    page.request.patch("/api/admin/bookings", { data: { id: first.id, startsAt: destination } }),
+    page.request.patch("/api/admin/bookings", { data: { id: second.id, startsAt: destination } }),
+  ]);
+  expect(moves.map(result => result.status()).sort()).toEqual([200, 409]);
+});

@@ -1,20 +1,25 @@
 # Arquitectura
 
-Monolito modular: Next.js App Router reúne páginas públicas, panel y rutas servidor. Prisma modela PostgreSQL y Zod valida entradas. El navegador nunca decide que una hora sigue libre: el servidor verifica horario, servicio, anticipación y ocupación.
+`ARCHITECTURE_DECISION=KEEP_NEXTJS_AND_ADAPT_DATABASE`.
+
+Next.js App Router sirve las páginas públicas, el panel administrativo y Route Handlers. Prisma 6 persiste en Azure SQL; no hay Server Actions ni acceso de navegador directo a la base. Zod valida las entradas de las API. El cliente nunca es la autoridad de disponibilidad.
 
 ## Persistencia y concurrencia
 
-Los instantes se almacenan como `timestamptz` UTC. Para reglas de apertura se transforma a `America/Montevideo`. `Occupancy` representa cada turno o bloqueo por profesional y se protege con `EXCLUDE USING gist (staffId WITH =, tstzrange(startsAt, endsAt, '[)') WITH &&) WHERE active`. Esta restricción de PostgreSQL es la última defensa ante condiciones de carrera. La creación toma además un advisory transaction lock para elegir profesional y escribir reserva+ocupación como una sola unidad. Turnos contiguos son legales porque el intervalo es semiabierto.
+`DateTimeOffset` conserva instantes y el código aplica las reglas comerciales en `America/Montevideo`. `Occupancy` representa turnos y bloqueos con intervalos semiabiertos `[inicio, fin)`. SQL Server no tiene la exclusión GiST usada por el historial PostgreSQL; la migración SQL Server instala un trigger que serializa por recurso usando `sp_getapplock` y rechaza solapamientos. Las transacciones de reserva pública, gestión por token, administración y bloqueos adquieren el mismo lock antes de consultar y mutar ocupación.
 
-La asignación “cualquier profesional” elige un profesional activo que brinda el servicio y tiene horario suficiente. Las pausas/cierres pueden modelarse como bloqueos por profesional. Las jornadas sin filas de horario no ofrecen disponibilidad.
+La migración mantiene checks para duración/horarios/intervalos y estado de reserva. La restricción compuesta `(bookingId, blockId)` junto al check de origen evita la limitación de índices únicos sobre valores `NULL` de SQL Server. Las horas deben existir para ofrecer disponibilidad; bloquear un intervalo también participa de la misma exclusión.
 
 ## Acceso
 
-El administrador se provisiona desde variables de entorno con hash bcrypt. La cookie firmada es HttpOnly, SameSite Strict, de duración limitada y Secure en producción. `RateLimit` limita intentos de login. Las mutaciones admin deben conservar autorización del lado servidor y protección de origen.
+El administrador se provisiona desde secretos del entorno con hash bcrypt. La cookie firmada es HttpOnly, SameSite Strict, temporal y Secure en producción. El rate limit usa una transacción y `sp_getapplock` por clave. Los endpoints administrativos verifican autorización en el servidor.
 
-## ADR
+En producción, Azure SQL exige autenticación Microsoft Entra. El runtime usa `@prisma/adapter-mssql` con la identidad administrada de App Service; no guarda usuario ni contraseña SQL. El workflow aplica los mismos archivos SQL con autenticación de principal de servicio y mantiene `_prisma_migrations`, porque `prisma migrate deploy` no usa la identidad administrada de App Service.
 
-- Next.js/TypeScript: un único despliegue Node sencillo y tipado.
-- PostgreSQL + Prisma 6: ORM común con migraciones SQL editables; la restricción GiST se añade en SQL porque no se expresa en el schema Prisma.
-- Sin servicio de mensajería. WhatsApp se mantiene como acción voluntaria `wa.me`.
-- Configuración temporal para Uruguay no depende del huso del dispositivo. La conversión se hace con `Intl` y persistencia UTC.
+## Decisiones
+
+- Next.js + React + TypeScript mantienen UI y API en un único runtime Node.
+- Prisma 6 usa el conector SQL Server; el adaptador de `mssql` habilita Microsoft Entra en Azure. Las migraciones PostgreSQL anteriores se conservan archivadas y no forman parte del historial nuevo.
+- Azure SQL es el destino acordado; la migración inicial nueva no debe aplicarse hasta inspeccionar la base existente.
+- `sp_getapplock` y el trigger forman defensa compartida entre las rutas de escritura y los escritores directos de `Occupancy`.
+- WhatsApp permanece como enlace estándar `wa.me` iniciado por la persona.

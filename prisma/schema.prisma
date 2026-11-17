@@ -2,20 +2,20 @@ generator client {
   provider = "prisma-client-js"
 }
 datasource db {
-  provider = "postgresql"
+  provider = "sqlserver"
   url = env("DATABASE_URL")
 }
 
 model AdminUser {
-  id String @id @default(cuid())
-  username String @unique
-  passwordHash String
+  id String @id @default(cuid()) @db.NVarChar(40)
+  username String @unique @db.NVarChar(100)
+  passwordHash String @db.NVarChar(255)
   createdAt DateTime @default(now())
 }
 model Service {
-  id String @id @default(cuid())
-  name String
-  description String?
+  id String @id @default(cuid()) @db.NVarChar(40)
+  name String @db.NVarChar(120)
+  description String? @db.NVarChar(500)
   durationMinutes Int
   priceCents Int?
   active Boolean @default(true)
@@ -24,24 +24,25 @@ model Service {
   staff StaffService[]
 }
 model Staff {
-  id String @id @default(cuid())
-  name String
+  id String @id @default(cuid()) @db.NVarChar(40)
+  name String @db.NVarChar(120)
   active Boolean @default(true)
   services StaffService[]
   hours BusinessHours[]
   bookings Booking[]
+  blocks TimeBlock[]
   occupancy Occupancy[]
 }
 model StaffService {
-  staffId String
-  serviceId String
+  staffId String @db.NVarChar(40)
+  serviceId String @db.NVarChar(40)
   staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
   service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   @@id([staffId, serviceId])
 }
 model BusinessHours {
-  id String @id @default(cuid())
-  staffId String
+  id String @id @default(cuid()) @db.NVarChar(40)
+  staffId String @db.NVarChar(40)
   weekday Int
   startMinute Int
   endMinute Int
@@ -49,65 +50,61 @@ model BusinessHours {
   @@index([staffId, weekday])
 }
 model Booking {
-  id String @id @default(cuid())
-  code String @unique
-  serviceId String
-  staffId String
-  customerName String
-  phoneNormalized String
-  startsAt DateTime @db.Timestamptz(3)
-  endsAt DateTime @db.Timestamptz(3)
-  status BookingStatus @default(confirmed)
-  manageTokenHash String @unique
-  idempotencyKey String? @unique
+  id String @id @default(cuid()) @db.NVarChar(40)
+  code String @unique @db.NVarChar(20)
+  serviceId String @db.NVarChar(40)
+  staffId String @db.NVarChar(40)
+  customerName String @db.NVarChar(160)
+  phoneNormalized String @db.NVarChar(32)
+  startsAt DateTime @db.DateTimeOffset
+  endsAt DateTime @db.DateTimeOffset
+  status String @default("confirmed") @db.NVarChar(20)
+  manageTokenHash String @unique @db.NVarChar(64)
+  idempotencyKey String @unique @db.NVarChar(100)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   service Service @relation(fields: [serviceId], references: [id])
-  staff Staff @relation(fields: [staffId], references: [id])
-  occupancy Occupancy?
+  staff Staff @relation(fields: [staffId], references: [id], onUpdate: NoAction)
+  occupancy Occupancy[]
   @@index([startsAt, status])
 }
 model TimeBlock {
-  id String @id @default(cuid())
-  staffId String
-  startsAt DateTime @db.Timestamptz(3)
-  endsAt DateTime @db.Timestamptz(3)
-  reason String?
+  id String @id @default(cuid()) @db.NVarChar(40)
+  staffId String @db.NVarChar(40)
+  startsAt DateTime @db.DateTimeOffset
+  endsAt DateTime @db.DateTimeOffset
+  reason String? @db.NVarChar(250)
   active Boolean @default(true)
-  occupancy Occupancy?
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  occupancy Occupancy[]
 }
 model Occupancy {
-  id String @id @default(cuid())
-  staffId String
-  bookingId String? @unique
-  blockId String? @unique
-  startsAt DateTime @db.Timestamptz(3)
-  endsAt DateTime @db.Timestamptz(3)
+  id String @id @default(cuid()) @db.NVarChar(40)
+  staffId String @db.NVarChar(40)
+  bookingId String? @db.NVarChar(40)
+  blockId String? @db.NVarChar(40)
+  startsAt DateTime @db.DateTimeOffset
+  endsAt DateTime @db.DateTimeOffset
   active Boolean @default(true)
-  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   booking Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   block TimeBlock? @relation(fields: [blockId], references: [id], onDelete: Cascade)
   @@index([staffId, startsAt, endsAt])
+  @@unique([bookingId, blockId])
 }
 model Settings {
   id Int @id @default(1)
-  businessName String @default("Al Corte")
-  publicPhone String?
-  timezone String @default("America/Montevideo")
-  currency String @default("UYU")
+  businessName String @default("Al Corte") @db.NVarChar(120)
+  publicPhone String? @db.NVarChar(32)
+  timezone String @default("America/Montevideo") @db.NVarChar(64)
+  currency String @default("UYU") @db.NVarChar(3)
   minAdvanceMinutes Int @default(60)
   maxAdvanceDays Int @default(60)
   slotStepMinutes Int @default(15)
-  cancellationPolicy String @default("Cancelá o cambiá tu hora con anticipación contactando al local.")
+  cancellationPolicy String @default("Cancelá o cambiá tu hora con anticipación contactando al local.") @db.NVarChar(500)
 }
 model RateLimit {
-  key String @id
+  key String @id @db.NVarChar(100)
   hits Int
-  resetAt DateTime @db.Timestamptz(3)
-}
-enum BookingStatus {
-  confirmed
-  cancelled
-  completed
-  no_show
+  resetAt DateTime @db.DateTimeOffset
 }
