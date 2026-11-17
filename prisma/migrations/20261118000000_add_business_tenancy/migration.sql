@@ -184,6 +184,7 @@ IF EXISTS (SELECT [tableName],[rowCount] FROM @before WHERE [tableName]<>N'Setti
  OR EXISTS (SELECT [tableName],[rowCount] FROM @after WHERE [tableName]<>N'Settings' EXCEPT SELECT [tableName],[rowCount] FROM @before WHERE [tableName]<>N'Settings')
  OR (SELECT [rowCount] FROM @after WHERE [tableName]=N'Settings')<>1
   THROW 51110, 'The tenant migration changed application row counts; transaction must roll back.', 1;
+EXEC sys.sp_executesql N'
 IF EXISTS (SELECT 1 FROM dbo.AdminUser WHERE businessId IS NULL)
  OR EXISTS (SELECT 1 FROM dbo.Settings WHERE businessId IS NULL)
  OR EXISTS (SELECT 1 FROM dbo.Service WHERE businessId IS NULL)
@@ -193,7 +194,7 @@ IF EXISTS (SELECT 1 FROM dbo.AdminUser WHERE businessId IS NULL)
  OR EXISTS (SELECT 1 FROM dbo.Booking WHERE businessId IS NULL)
  OR EXISTS (SELECT 1 FROM dbo.TimeBlock WHERE businessId IS NULL)
  OR EXISTS (SELECT 1 FROM dbo.Occupancy WHERE businessId IS NULL)
-  THROW 51111, 'Tenant assignment left orphaned rows; transaction must roll back.', 1;
+  THROW 51111, ''Tenant assignment left orphaned rows; transaction must roll back.'', 1;';
 
 EXEC(N'CREATE OR ALTER TRIGGER dbo.TR_Occupancy_NoOverlap ON dbo.Occupancy
 AFTER INSERT, UPDATE
