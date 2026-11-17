@@ -1,25 +1,26 @@
 # Despliegue
 
-Al Corte conserva Next.js App Router, React, TypeScript y Prisma. El destino es la Static Web App existente `barberweb` (`https://gentle-sky-060525010.4.azurestaticapps.net`), SKU Free, en el grupo `barberias`; está vinculada al repositorio `yunior25cu/barberias` y a `main`. No crear otra SWA ni desplegar un backend separado. Next.js Hybrid admite SSR, App Router y Route Handlers, pero Microsoft lo documenta como preview. El workflow debe mantener `app_location: "/"`, `api_location: ""` y `output_location: ""`; no habilitar `output: "export"`.
+Al Corte usa Next.js App Router, React, TypeScript y Prisma en modo Next.js Hybrid sobre la Static Web App existente `barberweb`, en el grupo `barberias`. El dominio canónico público es `https://reservas.balaxys.com`; Azure confirmó el dominio personalizado en estado `Ready` el 17 de noviembre de 2026. El hostname predeterminado de Azure identifica el mismo recurso, pero las direcciones públicas y los enlaces generados deben usar el dominio canónico.
 
-El workflow de Static Web Apps llama al workflow reutilizable `ci-cd.yml`. La calidad se ejecuta antes de publicar. Este repo genera salida Next.js standalone y copia los assets estáticos que necesita el servidor. La SWA solo está configurada para el branch `main`; publicar en `barber` no despliega producción.
+La aplicación está vinculada al repositorio `yunior25cu/barberias` y la rama `main`. El workflow `.github/workflows/azure-static-web-apps-gentle-sky-060525010.yml` conserva `app_location: "/"`, `api_location: ""` y `output_location: ""`, y espera los quality gates antes de desplegar. No crear otra Static Web App ni exportar el sitio de forma estática: Next.js SSR y los Route Handlers son parte del runtime.
 
 ## Configuración de entorno
 
-Las variables privadas se guardan en el entorno de producción de la Static Web App, fuera del repositorio. La consulta de nombres de settings no devolvió claves configuradas. Al terminar el acceso Azure SQL hay que configurar, como mínimo:
+Los application settings se guardan en Azure Static Web Apps, fuera de Git. `APP_URL` debe ser `https://reservas.balaxys.com`; el runtime lo usa para generar enlaces de activación y validar el origen. La configuración productiva incluye la conexión/autenticación de Azure SQL y `SESSION_SECRET`. No mostrar ni versionar sus valores. Las credenciales de los administradores se gestionan mediante bootstrap explícito y no se mantienen como settings permanentes.
 
-- `AZURE_SQL_AUTH_MODE`, `AZURE_SQL_SERVER`, `AZURE_SQL_DATABASE`.
-- Credenciales privadas del principal Entra mapeado en Azure SQL, si el runtime Hybrid no ofrece identidad administrada para la aplicación.
-- `SESSION_SECRET` con al menos 32 caracteres aleatorios y `APP_URL=https://gentle-sky-060525010.4.azurestaticapps.net`.
-- Credenciales iniciales del administrador solo durante el aprovisionamiento; no mantener su contraseña de bootstrap como variable permanente.
-- `DATABASE_URL` solo si el build/runtime realmente lo requiere. `npm run build` no consulta la base; no inyectar una cadena productiva en GitHub Secrets por defecto.
+El endpoint `https://reservas.balaxys.com/api/health` respondió `200` con `database: ok` durante la validación del dominio. La base `barber_sql` usa SQL Server serverless General Purpose con límite Free y comportamiento `AutoPause`; no cambiar el nivel ni habilitar overage como parte de un despliegue.
 
-No versionar `.env` ni credenciales. Configurar en GitHub Secrets únicamente datos que un job de CI necesite durante build o migración; preferir federación OIDC para autenticar GitHub Actions en Azure. Los settings de build de Next.js y los settings de ejecución del hosting son ámbitos distintos: configurar ambos solo cuando la variable se use en ambos momentos.
+## Base y release
 
-## Gate de base productiva
+Antes de aplicar migraciones, inspeccionar inventario, conteos, historial y checksums. `npm run db:release` rechaza tablas o migraciones no reconocidas y aplica únicamente las migraciones pendientes. La migración `20261119000000_platform_panel` quedó aplicada y el administrador de plataforma fue aprovisionado y validado mediante login y sesión HTTPS.
 
-Antes de migrar, obtener inventario de tablas y conteos de `barber_sql`, confirmar su estado Free Tier y que el overage siga deshabilitado, revisar copias/recuperación y reconciliar cualquier esquema existente. Luego habilitar una ruta aprobada para el principal de migración y probar conectividad. El script `npm run db:release` se detiene ante tablas de aplicación no reconocidas y verifica checksums; no aplicar una migración a ciegas.
+El flujo productivo es: push a `main` → quality gates; luego workflow dispatch de Static Web Apps con `confirm_production=true` → build y deployment. No desplegar saltando GitHub Actions. Confirmar el SHA, estado del deployment y health check por el dominio canónico.
 
-## Bloqueo conocido
+## Inventario de URLs
 
-La última lectura de metadatos disponible indicó `barber_sql` pausada, `publicNetworkAccess=Disabled` y sin endpoint privado encontrado. La base no pudo inspeccionarse ni migrarse. Por tanto, migración, conectividad desde el runtime y smoke tests productivos aún no están demostrados. No hacer push de la release a `main` ni desplegar hasta completar esas verificaciones, mapear la identidad/credencial con permisos mínimos, configurar los settings en la SWA y pasar todas las pruebas concurrentes, de seguridad, E2E y health check.
+- Dominio canónico de aplicación y enlaces absolutos: `https://reservas.balaxys.com`.
+- Reserva de Al Corte: `/al-corte/reservar`.
+- Administración de Al Corte: `/al-corte/admin`.
+- Panel de plataforma: `/plataforma`.
+- Los negocios usan enlaces relativos `/{slug}/reservar` y `/{slug}/admin`; no incluir el hostname de Azure en código.
+- El hostname predeterminado de Azure puede seguir resolviendo al mismo recurso, pero no se usa para compartir enlaces ni generar activaciones.

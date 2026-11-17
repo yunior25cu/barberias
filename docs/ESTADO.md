@@ -194,3 +194,13 @@ Implementation on `main`, starting at `66afbe0348b544715a8f6b07d41b50fc53d7c8a7`
 - `scripts/verify-platform-migration.mjs` and the automated bootstrap/recovery test are wired into CI. They were not run locally because they require SQL authentication and this local SQL Server connection uses Windows integrated authentication. CI still needs to validate the migration against its populated synthetic fixture after the branch is pushed.
 
 **Requested status:** `PLATFORM_PANEL=PASS` (local E2E); `BUSINESS_PROVISIONING=PASS` (A/B/C and idempotency/concurrency); `BUSINESS_NAME_CONFIG=PASS` (admin/platform name, metadata and greeting); `SECURITY_ISOLATION=PASS` (local E2E, origin/session boundaries and audit 0); `REGRESSION_TESTS=PASS` (lint, types, 9 unit/integration tests, 7 E2E, build); `DEPLOYMENT=NOT RUN` (no push, production migration, or deployment). `AL_CORTE_PRODUCTION=NOT PASS` until CI validates the populated migration fixture and an authorized production cut completes with recovery and smoke tests.
+
+## Dominio canónico y estado productivo - 2026-11-17
+
+Esta entrada supersede los estados de planificación antiguos de este documento para el hosting, la base y el despliegue:
+
+- Dominio canónico: `https://reservas.balaxys.com`. Azure Static Web Apps reportó el custom domain `Ready`; el endpoint `/api/health` respondió `200` con `database: ok`.
+- `APP_URL` en Azure debe apuntar al dominio canónico para generar enlaces de activación. Los valores secretos no se registran aquí ni en Git.
+- `barber_sql` está Online en General Purpose serverless, con límite Free y `AutoPause`. La migración `20261119000000_platform_panel` fue aplicada luego de inspeccionar tablas e historial.
+- La rama `main` está desplegada por el workflow aprobado; el login del administrador de plataforma y su sesión fueron comprobados vía HTTPS.
+- El hostname predeterminado de Azure sigue identificando la misma Static Web App, pero ya no es la URL canónica ni debe usarse en enlaces/documentación nuevos.
