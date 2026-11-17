@@ -1,12 +1,13 @@
 SET XACT_ABORT ON;
 
-DECLARE @baselineChecksum CHAR(64) = '4f5b6020d31e0da72f5c61d8a3801619e02e7b21c3a84e866c5623e053fe27be';
+DECLARE @baselineChecksum CHAR(64) = '544c9107008668fec2d13487321039317767cb96dc603ea2a22f980d8fa334dc';
+DECLARE @windowsBaselineChecksum CHAR(64) = '4f5b6020d31e0da72f5c61d8a3801619e02e7b21c3a84e866c5623e053fe27be';
 IF OBJECT_ID(N'dbo._prisma_migrations', N'U') IS NULL
   THROW 51100, 'Expected SQL Server migration history is missing; inspect the database before tenant migration.', 1;
 IF NOT EXISTS (
   SELECT 1 FROM dbo._prisma_migrations
   WHERE migration_name = N'20261117010000_init_sqlserver'
-    AND checksum = @baselineChecksum AND finished_at IS NOT NULL AND rolled_back_at IS NULL
+    AND checksum IN (@baselineChecksum,@windowsBaselineChecksum) AND finished_at IS NOT NULL AND rolled_back_at IS NULL
 )
   THROW 51101, 'SQL Server baseline migration or checksum differs from the reviewed source; stop for database reconciliation.', 1;
 IF EXISTS (SELECT 1 FROM sys.tables WHERE name=N'Business' AND schema_id=SCHEMA_ID(N'dbo'))
