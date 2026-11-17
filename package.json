@@ -1,6 +1,9 @@
 {
   "name": "alcorte",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=22 <23"
+  },
   "description": "",
   "main": "index.js",
   "scripts": {

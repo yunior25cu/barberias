@@ -14,14 +14,8 @@ if ($env:DATABASE_URL -notmatch '^sqlserver://(localhost|127\.0\.0\.1)(:\d+)?;da
 
 docker compose up -d db
 if ($LASTEXITCODE -ne 0) { throw 'Could not start the local SQL Server container.' }
-$container = 'alcorte-sqlserver'
-$ready = $false
-for ($attempt = 0; $attempt -lt 60; $attempt++) {
-  $health = docker inspect --format '{{.State.Health.Status}}' $container 2>$null
-  if ($health -eq 'healthy') { $ready = $true; break }
-  Start-Sleep -Seconds 2
-}
-if (-not $ready) { throw 'Local SQL Server did not become healthy in 120 seconds.' }
+node scripts/wait-for-sqlserver.mjs
+if ($LASTEXITCODE -ne 0) { throw 'Local SQL Server did not accept a real SQL query within the readiness timeout.' }
 
 node scripts/create-local-sqlserver-db.mjs
 if ($LASTEXITCODE -ne 0) { throw 'Could not inspect/create local barber_local database.' }

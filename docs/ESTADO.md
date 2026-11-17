@@ -120,3 +120,28 @@ Para continuar esta fase hace falta resolver el destino de despliegue: alinear e
 - Microsoft documenta Hybrid Next.js en Static Web Apps como Preview. No se valido en Azure un build/deploy con Next.js 16.4.6, el runtime de las Route Handlers, los app settings de produccion ni el acceso de red/runtime a Azure SQL.
 - No se configuraron secretos en GitHub/Azure, no se modificó la base remota ni se crearon recursos. `DATABASE_MIGRATION`, conectividad de runtime, `/api/health`, smoke tests de reserva/admin y SHA productivo permanecen sin PASS.
 - Gate de salida: `AL_CORTE_PRODUCTION=NOT PASS`. Bloqueo exacto: inspección y migración remotas inaccesibles por el estado/red de SQL; falta validar autenticación/egress del runtime SWA hacia SQL y no se han configurado los settings productivos. No empujar a `main` hasta resolverlo.
+
+## Forense CI/CD - 2026-11-17
+
+### Fallos observados en GitHub Actions
+
+| Run | SHA | Workflow/job | Primer step fallido y mensaje | Causa raíz |
+| --- | --- | --- | --- | --- |
+| `44020561607` | `16c49d9807961f027a29efdb97d1e8a9c8f01026` | Al Corte CI/CD / `quality-gates` | Browser setup: `ERROR: Playwright does not support chromium on ubuntu26.04-x64` | `ubuntu-latest` se resolvió a Ubuntu 26.04, no soportado por Playwright 1.56.1. |
+| `44020515916` | `94e7b430101120dca16667bb290d905cbab77b48` | Al Corte CI/CD / `quality-gates` | Mismo error de Browser setup en Ubuntu 26.04 | Misma causa raíz. |
+| `44020450005` | `e03338389ee64e0c709235791f33d8f5233eb7f7` | Al Corte CI/CD / `quality-gates` | Mismo error de Browser setup en Ubuntu 26.04 | Misma causa raíz. |
+| `44020341691` | `f6684ee1bf782d142cd618250d1f90999cd3295a` | Al Corte CI/CD / `quality-gates` | Mismo error de Browser setup en Ubuntu 26.04 | Misma causa raíz. |
+| `44019389968` | `ce243e2b18c0bcae0d7e72c8e0c0b4812a9779e6` | Al Corte CI/CD / `quality-gates` | Mismo error de Browser setup en Ubuntu 26.04 | Misma causa raíz. Los quality steps previos (SQL, migración, audit, lint/tipos y concurrencia) pasaron; E2E/build se omitieron. |
+| `44017600339` | `3ac4ecea4b75f5c4378f95a766712c9b20993600` | Azure Static Web Apps CI/CD / `Build and Deploy Job` | Build And Deploy: `The app build failed to produce artifact folder: 'build'.` | Configuración heredada de React estático: esperaba `/build` después de compilar Next.js. El build Next sí terminó y listó sus Route Handlers antes de la validación de artefacto. |
+
+`CI_FAILURE_ROOT_CAUSE=Playwright runner incompatibility (ubuntu-latest resolved to ubuntu-26.04)`. `SWA_FAILURE_ROOT_CAUSE=wrong React build artifact path (build instead of Next.js Hybrid empty output location)`.
+
+### Corrección preparada en `barber`
+
+- `ci-cd.yml`: solo push a `barber`, PR hacia `main` y `workflow_call`; main evita una segunda ejecución porque la SWA invoca el reusable workflow. Runner fijado a `ubuntu-24.04`; Node soportado fijado a `>=22 <23`.
+- SQL de CI fijado por digest y sin dependencia de la ubicación de `sqlcmd`. El healthcheck de contenedor solo comprueba proceso; `scripts/wait-for-sqlserver.mjs` repite una conexión mssql real a `master`/`SELECT 1` y emite `SQL_SERVER_READY=PASS` antes de crear la base.
+- `scripts/assert-ci-database.mjs` acepta exclusivamente `localhost` + `barber_local` en modo SQL y rechaza el hostname/base productivos, autenticación Entra y servidor Azure. Tests y migraciones usan solo el `DATABASE_URL` local efímero del job.
+- El workflow SWA solo escucha push a `main`, llama los gates y luego publica con `app_location: "/"`, `api_location: ""`, `output_location: ""`; no despliega desde `barber` ni desde PR.
+- Flujo local limpio con SQL Server efímero: `npm ci`, Prisma generate/validate, audit, guard, `SQL_SERVER_READY=PASS`, DB inspect/release/status, seed, lint, tipos, 7/7 unit/integration (incluida concurrencia SQL), E2E 3/3 (incluida concurrencia HTTP), y build standalone: PASS. El contenedor temporal se eliminó.
+- Aún falta que GitHub Actions ejecute el nuevo SHA y confirme `BARBER_CI=PASS`; no promover a `main` antes de esa evidencia.
+- Build de Next.js Hybrid no necesitó `DATABASE_URL` ni `SESSION_SECRET`: el run SWA 44017600339 completó `npm run build` y solo falló después por la ruta `build`. Las credenciales necesarias en runtime pertenecen a Environment settings de `barberweb`; la consulta de nombres no devolvió settings configurados. No se copian secretos productivos a CI ni al repositorio.

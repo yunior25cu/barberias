@@ -1,9 +1,10 @@
-name: Al Corte CI/CD
+name: Al Corte Quality Gates
 
 on:
-  pull_request:
   push:
-    branches: [main, barber]
+    branches: [barber]
+  pull_request:
+    branches: [main]
   workflow_call:
 
 permissions:
@@ -11,22 +12,24 @@ permissions:
 
 jobs:
   quality-gates:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
     services:
       sqlserver:
-        image: mcr.microsoft.com/mssql/server:2022-latest
+        image: mcr.microsoft.com/mssql/server@sha256:4525e3efac9f3e241cb003bb2ff2a82818b502f37e12049d788b1a9fa7e13b7f
         env:
           ACCEPT_EULA: Y
           MSSQL_PID: Developer
           MSSQL_SA_PASSWORD: AlCorte-CI-Sql-2026!
         ports:
           - 1433:1433
+        # The SQL client probe in the workflow verifies engine readiness.
         options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'AlCorte-CI-Sql-2026!' -Q 'SELECT 1' -b"
+          --health-cmd "exit 0"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 30
-          --health-start-period 30s
+          --health-start-period 10s
     env:
       DATABASE_URL: sqlserver://localhost:1433;database=barber_local;user=sa;password=AlCorte-CI-Sql-2026!;encrypt=true;trustServerCertificate=true
       MSSQL_SA_PASSWORD: AlCorte-CI-Sql-2026!
@@ -38,14 +41,25 @@ jobs:
       RUN_DB_TESTS: "1"
       CI: "true"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --legacy-peer-deps
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Guard CI database target
+        run: node scripts/assert-ci-database.mjs
+      - name: Generate Prisma Client
+        run: npx prisma generate
+      - name: Validate Prisma schema
+        run: npx prisma validate
       - name: Security audit
         run: npm audit --audit-level=moderate
+      - name: Wait for SQL Server
+        run: node scripts/wait-for-sqlserver.mjs
       - name: Create isolated test database
         run: node scripts/create-local-sqlserver-db.mjs
       - name: Inspect before migrating
@@ -56,13 +70,13 @@ jobs:
         run: npx prisma migrate status
       - name: Provision disposable test administrator
         run: npm run db:seed
-      - name: Lint and typecheck
-        run: |
-          npm run lint
-          npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
       - name: Unit and real SQL Server concurrency tests
         run: npm test
-      - name: Browser setup
+      - name: Install Playwright Chromium and system dependencies
         run: npx playwright install --with-deps chromium
       - name: HTTP and functional E2E tests
         run: npm run test:e2e
