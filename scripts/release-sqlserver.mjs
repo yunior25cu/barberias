@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import sql from "mssql";
@@ -27,7 +27,7 @@ if (mode === "service-principal") {
   authentication = { type: "azure-active-directory-service-principal-secret", options: { clientId, clientSecret, tenantId } };
 } else if (mode === "azure-cli") {
   if (!server || !database) throw new Error("Azure SQL server and database are required for Azure CLI authentication.");
-  const token = execFileSync("az", ["account", "get-access-token", "--resource", "https://database.windows.net/", "--query", "accessToken", "--output", "tsv"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  const token = execSync("az account get-access-token --resource https://database.windows.net/ --query accessToken --output tsv", { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
   if (!token) throw new Error("Azure CLI did not return an Azure SQL access token.");
   authentication = { type: "azure-active-directory-access-token", options: { token } };
 } else if (mode === "sql") {
