@@ -109,9 +109,14 @@ export async function handlePATCH(request: Request, business: BusinessContext) {
       await tx.assertBusinessActive();
       const current = await tx.booking.findFirst({ where: { id: body.data.id, businessId: business.id } });
       if (!current) return null;
+      if (current.status !== "confirmed") return { alreadyFinal: true, status: current.status };
       const status = body.data.status ?? current.status;
       if (status !== "confirmed") {
-        await tx.booking.update({ where: { id: current.id, businessId: business.id }, data: { status } });
+        const changed = await tx.booking.updateMany({
+          where: { id: current.id, businessId: business.id, status: "confirmed" },
+          data: { status },
+        });
+        if (changed.count !== 1) return { alreadyFinal: true, status: current.status };
         await tx.occupancy.updateMany({ where: { businessId: business.id, bookingId: current.id }, data: { active: false } });
         return { id: current.id, status };
       }
@@ -137,17 +142,20 @@ export async function handlePATCH(request: Request, business: BusinessContext) {
         select: { id: true },
       });
       if (conflict) throw new Error("SLOT_TAKEN");
-      await tx.occupancy.deleteMany({ where: { businessId: business.id, bookingId: current.id } });
-      await tx.booking.update({
-        where: { id: current.id, businessId: business.id },
+      const changed = await tx.booking.updateMany({
+        where: { id: current.id, businessId: business.id, status: "confirmed" },
         data: { status, serviceId, staffId, startsAt, endsAt },
       });
+      if (changed.count !== 1) return { alreadyFinal: true, status: current.status };
+      await tx.occupancy.deleteMany({ where: { businessId: business.id, bookingId: current.id } });
       await tx.occupancy.create({
         data: { businessId: business.id, bookingId: current.id, staffId, startsAt, endsAt },
       });
       return { id: current.id, status, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() };
     }, { isolationLevel: "ReadCommitted" });
-    return result ? json(result) : error("No encontramos la reserva.", 404);
+    if (!result) return error("No encontramos la reserva.", 404);
+    if ("alreadyFinal" in result) return error("La reserva ya fue actualizada por otra acción. Actualizá la agenda para ver su estado actual.", 409);
+    return json(result);
   } catch (cause) {
     if (cause instanceof Error && cause.message === "INVALID") return error("El profesional no ofrece ese servicio en ese horario.", 422);
     if (cause instanceof Error && cause.message === "SLOT_TAKEN") return error("El nuevo horario está ocupado.", 409);

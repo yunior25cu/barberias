@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type Business = { id: string; slug: string; status: "active" | "inactive"; createdAt: string; publicUrl?: string; adminUrl?: string; settings: { businessName: string; publicPhone: string | null } | null };
 type Detail = Business & { settings: { businessName: string; publicPhone: string | null; timezone: string; currency: string; minAdvanceMinutes: number; maxAdvanceDays: number; slotStepMinutes: number } | null; audits: { id: string; action: string; result: string; changesJson: string | null; createdAt: string; actor: { username: string } }[] };
@@ -31,6 +32,8 @@ export default function Platform() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
   const [pending, setPending] = useState<{ key: string; payload: NewBusiness } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ kind: "status" | "activation"; title: string; description: string; confirmLabel: string; danger?: boolean } | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   const loadBusinesses = useCallback(async () => {
     const data = await api<{ businesses: Business[]; pages: number; total: number }>(`/api/plataforma/businesses?page=${page}&q=${encodeURIComponent(q)}&status=${status}`);
@@ -91,18 +94,53 @@ export default function Platform() {
   async function toggleStatus() {
     if (!detail) return;
     const next = detail.status === "active" ? "inactive" : "active";
-    const confirmation = next === "inactive"
-      ? "¿Desactivar este negocio? Se conservarán reservas y datos, pero el panel y los enlaces públicos dejarán de funcionar hasta reactivarlo."
-      : "¿Reactivar este negocio? Su responsable tendrá que iniciar sesión nuevamente.";
-    if (!window.confirm(confirmation)) return;
-    try { await api(`/api/plataforma/businesses/${encodeURIComponent(detail.id)}/status`, { method: "PATCH", body: JSON.stringify({ status: next }) }); setMessage(next === "inactive" ? "Negocio desactivado." : "Negocio reactivado."); await loadDetail(detail.id); await loadBusinesses(); }
-    catch (error) { setErrorMessage(error instanceof Error ? error.message : "No pudimos cambiar el estado."); }
+    setConfirmAction({
+      kind: "status",
+      title: next === "inactive" ? "Desactivar negocio" : "Reactivar negocio",
+      description: next === "inactive"
+        ? "Se conservarán reservas y datos, pero el panel y los enlaces públicos dejarán de funcionar hasta reactivarlo."
+        : "El responsable tendrá que iniciar sesión nuevamente.",
+      confirmLabel: next === "inactive" ? "Desactivar negocio" : "Reactivar negocio",
+      danger: next === "inactive",
+    });
   }
 
   async function issueActivation() {
-    if (!detail || !window.confirm("El enlace anterior quedará invalidado y el responsable deberá volver a activar su cuenta. ¿Emitir un enlace nuevo?")) return;
-    try { const result = await api<{ activationLink: string; expiresAt: string }>(`/api/plataforma/businesses/${encodeURIComponent(detail.id)}/activation`, { method: "POST", body: JSON.stringify({ confirm: true }) }); setActivation({ created: false, business: detail, ...result }); setMessage("Nuevo acceso temporal emitido. La cuenta requiere activación."); await loadDetail(detail.id); }
-    catch (error) { setErrorMessage(error instanceof Error ? error.message : "No pudimos emitir el acceso."); }
+    if (!detail) return;
+    setConfirmAction({
+      kind: "activation",
+      title: "Emitir un nuevo acceso temporal",
+      description: "El enlace anterior quedará invalidado y el responsable deberá volver a activar su cuenta.",
+      confirmLabel: "Emitir acceso",
+      danger: true,
+    });
+  }
+
+  async function executeConfirmAction() {
+    if (!detail || !confirmAction) return;
+    setConfirmBusy(true);
+    setErrorMessage("");
+    try {
+      if (confirmAction.kind === "status") {
+        const next = detail.status === "active" ? "inactive" : "active";
+        await api(`/api/plataforma/businesses/${encodeURIComponent(detail.id)}/status`, { method: "PATCH", body: JSON.stringify({ status: next }) });
+        setMessage(next === "inactive" ? "Negocio desactivado." : "Negocio reactivado.");
+        setConfirmAction(null);
+        await loadDetail(detail.id);
+        await loadBusinesses();
+      } else {
+        const result = await api<{ activationLink: string; expiresAt: string }>(`/api/plataforma/businesses/${encodeURIComponent(detail.id)}/activation`, { method: "POST", body: JSON.stringify({ confirm: true }) });
+        setActivation({ created: false, business: detail, ...result });
+        setMessage("Nuevo acceso temporal emitido. La cuenta requiere activación.");
+        setConfirmAction(null);
+        await loadDetail(detail.id);
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No pudimos completar la acción.");
+      setConfirmAction(null);
+    } finally {
+      setConfirmBusy(false);
+    }
   }
 
   async function logout() {
@@ -141,6 +179,6 @@ export default function Platform() {
       <div className="platform-actions"><button className="secondary" onClick={() => void issueActivation()}>Emitir nuevo acceso temporal</button><button className={detail.status === "active" ? "danger-button" : "primary"} onClick={() => void toggleStatus()}>{detail.status === "active" ? "Desactivar negocio" : "Reactivar negocio"}</button></div>
       <h3>Actividad reciente</h3>{detail.audits.length === 0 ? <p className="notice">Todavía no hay acciones registradas.</p> : <ul className="audit-list">{detail.audits.map(entry => <li key={entry.id}><strong>{entry.action}</strong><span>{new Date(entry.createdAt).toLocaleString("es-UY", { timeZone: "America/Montevideo" })}</span>{entry.changesJson && <small>{entry.changesJson}</small>}</li>)}</ul>}
     </section>}
-    <footer className="footer">La plataforma administra negocios y acceso de responsables. No muestra datos ni agendas de clientes.</footer>
+    <footer className="footer">La plataforma administra negocios y acceso de responsables. No muestra datos ni agendas de clientes.</footer><ConfirmDialog open={Boolean(confirmAction)} title={confirmAction?.title??"Confirmar acción"} description={confirmAction?.description??""} confirmLabel={confirmBusy?"Procesando…":confirmAction?.confirmLabel??"Confirmar"} danger={confirmAction?.danger} onConfirm={executeConfirmAction} onClose={()=>{if(!confirmBusy)setConfirmAction(null);}} />
   </main>;
 }
