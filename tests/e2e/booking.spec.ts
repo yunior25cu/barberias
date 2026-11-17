@@ -1,5 +1,18 @@
 import { expect, test } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+async function loginAs(page: import("@playwright/test").Page, slug: string) {
+  await page.goto(`/${slug}/admin`);
+  await page.getByLabel("Usuario").fill("e2e-owner");
+  await page.getByLabel("Contraseña").fill("E2E-only-password-123!");
+  const loginResponse = page.waitForResponse(response =>
+    new URL(response.url()).pathname === `/api/${slug}/auth/login` && response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Entrar" }).click();
+  const response = await loginResponse;
+  const result = await response.json();
+  expect(response.status(), `Admin login for ${slug} failed: ${result.error ?? "unknown error"}`).toBe(200);
+  await expect(page.getByRole("heading", { name: /Agenda del/ })).toBeVisible();
+}
 test("reserva completa desde viewport móvil sin crear una cuenta",async({page})=>{
   await page.goto("/al-corte/reservar");await expect(page.getByRole("heading",{name:"¿Qué te gustaría hacerte?"})).toBeVisible();
   await page.getByRole("button",{name:/Corte de prueba E2E/}).click();await expect(page.getByRole("button",{name:"Cualquier profesional disponible"})).toBeVisible();await page.getByRole("button",{name:"Profesional E2E B"}).click();await page.getByRole("button",{name:/Elegir día y hora/}).click();
@@ -7,7 +20,7 @@ test("reserva completa desde viewport móvil sin crear una cuenta",async({page})
   await page.getByLabel("Elegí un día").fill(day);await page.getByRole("button",{name:"09:00"}).click();await page.getByRole("button",{name:/Continuar/}).click();
   await page.getByLabel("Tu nombre").fill("Ana Prueba");await page.getByLabel("Teléfono").fill("099 123 456");await page.getByRole("button",{name:"Confirmar reserva"}).click();
   await expect(page.getByRole("heading",{name:"¡Pronto nos vemos, Ana Prueba!"})).toBeVisible();await expect(page.getByText(/Código:/)).toBeVisible();
-  await page.getByRole("button",{name:"Cambiar horario"}).click();const later=new Date(Date.now()+8*86400_000);const laterDay=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Montevideo",year:"numeric",month:"2-digit",day:"2-digit"}).format(later);await page.getByLabel("Elegí un día").fill(laterDay);await page.getByRole("button",{name:"09:00"}).click();await page.getByRole("button",{name:/Continuar/}).click();await page.getByRole("button",{name:"Cambiar horario"}).click();await expect(page.getByRole("heading",{name:"¡Pronto nos vemos, Ana Prueba!"})).toBeVisible();
+  await page.getByRole("button",{name:"Cambiar horario"}).click();const later=new Date(Date.now()+8*86400_000);const laterDay=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Montevideo",year:"numeric",month:"2-digit",day:"2-digit"}).format(later);await page.getByLabel("Elegí un día").fill(laterDay);await page.getByRole("button",{name:"09:00"}).click();await page.getByRole("button",{name:/Continuar/}).click();const manageResponse=page.waitForResponse(response=>new URL(response.url()).pathname==="/api/al-corte/manage"&&response.request().method()==="POST");await page.getByRole("button",{name:"Cambiar horario"}).click();const manageResult=await manageResponse;const manageBody=await manageResult.json();expect(manageResult.status(),`Public reschedule failed: ${manageBody.error??"unknown error"}`).toBe(200);await expect(page.getByRole("heading",{name:"¡Pronto nos vemos, Ana Prueba!"})).toBeVisible();
   page.once("dialog",dialog=>dialog.accept());await page.getByRole("button",{name:"Cancelar reserva"}).click();await expect(page.getByText("La reserva quedó cancelada.")).toBeVisible();
 });
 test("separa catálogo, sesiones y relaciones entre negocios", async ({ page }) => {
@@ -21,11 +34,7 @@ test("separa catálogo, sesiones y relaciones entre negocios", async ({ page }) 
   expect(namesA).not.toContain("Servicio solo B");
   expect(namesB).toEqual(["Servicio solo B"]);
 
-  await page.goto("/al-corte/admin");
-  await page.getByLabel("Usuario").fill("e2e-owner");
-  await page.getByLabel("Contraseña").fill("E2E-only-password-123!");
-  await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page.getByRole("heading", { name: "Agenda del día" })).toBeVisible();
+  await loginAs(page, "al-corte");
   expect((await page.request.get("/api/al-corte/admin/services")).status()).toBe(200);
   expect((await page.request.get("/api/e2e-b/admin/services")).status()).toBe(401);
 
@@ -42,11 +51,7 @@ test("separa catálogo, sesiones y relaciones entre negocios", async ({ page }) 
   });
   expect(crossTenantToken.status()).toBe(404);
 
-  await page.goto("/e2e-b/admin");
-  await page.getByLabel("Usuario").fill("e2e-owner");
-  await page.getByLabel("Contraseña").fill("E2E-only-password-123!");
-  await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page.getByRole("heading", { name: "Agenda del día" })).toBeVisible();
+  await loginAs(page, "e2e-b");
   expect((await page.request.get("/api/e2e-b/admin/services")).status()).toBe(200);
   expect((await page.request.get("/api/al-corte/admin/services")).status()).toBe(401);
   const adminB = await page.request.get("/api/e2e-b/admin/services");
@@ -54,8 +59,7 @@ test("separa catálogo, sesiones y relaciones entre negocios", async ({ page }) 
 });
 test("el panel protege el acceso y permite mantener servicios y equipo",async({page})=>{
   const unauthorized=await page.request.get("/api/al-corte/admin/services");expect(unauthorized.status()).toBe(401);
-  await page.goto("/al-corte/admin");await page.getByLabel("Usuario").fill("e2e-owner");await page.getByLabel("Contraseña").fill("E2E-only-password-123!");await page.getByRole("button",{name:"Entrar"}).click();
-  await expect(page.getByRole("heading",{name:"Agenda del día"})).toBeVisible();await page.getByRole("button",{name:"Servicios y equipo"}).click();
+  await loginAs(page, "al-corte");await page.getByRole("button",{name:"Servicios y equipo"}).click();
   const serviceForm=page.locator("form").filter({has:page.getByRole("heading",{name:"Agregar servicio"})});await serviceForm.getByLabel("Nombre").fill("Servicio prueba admin");await serviceForm.getByLabel("Duración (minutos)").fill("45");await serviceForm.getByRole("button",{name:"Guardar servicio"}).click();await expect(page.getByText("Servicio prueba admin").first()).toBeVisible();
   const staffForm=page.locator("form").filter({has:page.getByRole("heading",{name:"Agregar profesional"})});await staffForm.getByLabel("Nombre").fill("Profesional prueba admin");await staffForm.getByLabel("Servicio prueba admin").check();await staffForm.getByRole("button",{name:"Agregar al equipo"}).click();await expect(page.getByText("Profesional prueba admin").first()).toBeVisible();
   const future=new Date(Date.now()+8*86400_000);let day=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Montevideo",year:"numeric",month:"2-digit",day:"2-digit"}).format(future);while(new Date(`${day}T12:00:00Z`).getUTCDay()!==1)day=new Date(new Date(`${day}T12:00:00Z`).getTime()+86400_000).toISOString().slice(0,10);
@@ -68,11 +72,7 @@ test("el panel protege el acceso y permite mantener servicios y equipo",async({p
 });
 
 test("las reservas HTTP concurrentes no permiten colisiones entre cliente y administración ni entre reprogramaciones", async ({ page }) => {
-  await page.goto("/al-corte/admin");
-  await page.getByLabel("Usuario").fill("e2e-owner");
-  await page.getByLabel("Contraseña").fill("E2E-only-password-123!");
-  await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page.getByRole("heading", { name: "Agenda del día" })).toBeVisible();
+  await loginAs(page, "al-corte");
 
   const dayFor = (daysAhead: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Montevideo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + daysAhead * 86400_000));
   const instant = (day: string, hour: number) => new Date(`${day}T${String(hour + 3).padStart(2, "0")}:00:00.000Z`).toISOString();
@@ -112,11 +112,7 @@ test("active slugs reject renamed businesses and admin sessions are revoked", as
   let originalSlug: string | undefined;
   try {
     expect((await page.request.get("/api/unknown-business/services")).status()).toBe(404);
-    await page.goto("/al-corte/admin");
-    await page.locator("#user").fill("e2e-owner");
-    await page.locator("#password").fill("E2E-only-password-123!");
-    await page.getByRole("button", { name: "Entrar" }).click();
-    await expect.poll(async () => (await page.request.get("/api/al-corte/admin/services")).status()).toBe(200);
+    await loginAs(page, "al-corte");
 
     const owner = await db.adminUser.findFirst({ where: { businessId: "al-corte", username: "e2e-owner" }, select: { id: true } });
     expect(owner).not.toBeNull();
