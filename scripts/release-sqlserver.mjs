@@ -122,7 +122,11 @@ try {
     const transaction = new sql.Transaction(pool);
     try {
       await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
-      await transaction.request().batch(migrationSql);
+      const batches = migrationSql
+        .split(/^\s*GO\s*(?:--.*)?$/gim)
+        .map(batch => batch.trim())
+        .filter(Boolean);
+      for (const batch of batches) await transaction.request().batch(batch);
       await transaction.request()
         .input("id", sql.VarChar(36), id)
         .input("finishedAt", sql.DateTimeOffset, new Date())

@@ -18,8 +18,8 @@ IF OBJECT_ID(N'dbo.AdminUser',N'U') IS NULL OR OBJECT_ID(N'dbo.Settings',N'U') I
  OR OBJECT_ID(N'dbo.Occupancy',N'U') IS NULL OR OBJECT_ID(N'dbo.RateLimit',N'U') IS NULL
   THROW 51103, 'The expected Al Corte SQL Server schema is incomplete; inspect before migration.', 1;
 
-DECLARE @before TABLE ([tableName] SYSNAME PRIMARY KEY, [rowCount] BIGINT NOT NULL);
-INSERT INTO @before VALUES
+CREATE TABLE #before ([tableName] SYSNAME PRIMARY KEY, [rowCount] BIGINT NOT NULL);
+INSERT INTO #before VALUES
  (N'AdminUser',(SELECT COUNT_BIG(*) FROM dbo.AdminUser)),
  (N'Settings',(SELECT COUNT_BIG(*) FROM dbo.Settings)),
  (N'Service',(SELECT COUNT_BIG(*) FROM dbo.Service)),
@@ -29,7 +29,7 @@ INSERT INTO @before VALUES
  (N'Booking',(SELECT COUNT_BIG(*) FROM dbo.Booking)),
  (N'TimeBlock',(SELECT COUNT_BIG(*) FROM dbo.TimeBlock)),
  (N'Occupancy',(SELECT COUNT_BIG(*) FROM dbo.Occupancy));
-IF (SELECT [rowCount] FROM @before WHERE [tableName]=N'Settings')>1
+IF (SELECT [rowCount] FROM #before WHERE [tableName]=N'Settings')>1
   THROW 51112, 'More than one legacy Settings row exists; inspect before tenant migration.', 1;
 
 IF EXISTS (
@@ -70,6 +70,7 @@ ALTER TABLE dbo.BusinessHours ADD [businessId] NVARCHAR(40) NULL;
 ALTER TABLE dbo.Booking ADD [businessId] NVARCHAR(40) NULL;
 ALTER TABLE dbo.TimeBlock ADD [businessId] NVARCHAR(40) NULL;
 ALTER TABLE dbo.Occupancy ADD [businessId] NVARCHAR(40) NULL;
+GO
 
 UPDATE dbo.AdminUser SET businessId=N'al-corte';
 UPDATE dbo.Settings SET businessId=N'al-corte';
@@ -111,7 +112,7 @@ ALTER TABLE dbo.Settings DROP CONSTRAINT CK_Settings_singleton;
 ALTER TABLE dbo.Settings DROP CONSTRAINT PK_Settings;
 ALTER TABLE dbo.Settings DROP CONSTRAINT DF_Settings_id;
 ALTER TABLE dbo.Settings DROP COLUMN [id];
-IF (SELECT [rowCount] FROM @before WHERE [tableName]=N'Settings')=0
+IF (SELECT [rowCount] FROM #before WHERE [tableName]=N'Settings')=0
   EXEC sys.sp_executesql N'INSERT INTO dbo.Settings ([businessId],[businessName]) VALUES (N''al-corte'',N''Al Corte'');';
 
 ALTER TABLE dbo.AdminUser ALTER COLUMN businessId NVARCHAR(40) NOT NULL;
@@ -181,8 +182,8 @@ INSERT INTO @after VALUES
  (N'Booking',(SELECT COUNT_BIG(*) FROM dbo.Booking)),
  (N'TimeBlock',(SELECT COUNT_BIG(*) FROM dbo.TimeBlock)),
  (N'Occupancy',(SELECT COUNT_BIG(*) FROM dbo.Occupancy));
-IF EXISTS (SELECT [tableName],[rowCount] FROM @before WHERE [tableName]<>N'Settings' EXCEPT SELECT [tableName],[rowCount] FROM @after WHERE [tableName]<>N'Settings')
- OR EXISTS (SELECT [tableName],[rowCount] FROM @after WHERE [tableName]<>N'Settings' EXCEPT SELECT [tableName],[rowCount] FROM @before WHERE [tableName]<>N'Settings')
+IF EXISTS (SELECT [tableName],[rowCount] FROM #before WHERE [tableName]<>N'Settings' EXCEPT SELECT [tableName],[rowCount] FROM @after WHERE [tableName]<>N'Settings')
+ OR EXISTS (SELECT [tableName],[rowCount] FROM @after WHERE [tableName]<>N'Settings' EXCEPT SELECT [tableName],[rowCount] FROM #before WHERE [tableName]<>N'Settings')
  OR (SELECT [rowCount] FROM @after WHERE [tableName]=N'Settings')<>1
   THROW 51110, 'The tenant migration changed application row counts; transaction must roll back.', 1;
 EXEC sys.sp_executesql N'
@@ -226,5 +227,7 @@ BEGIN
      AND o.startsAt<i.endsAt AND o.endsAt>i.startsAt AND o.id<>i.id
  ) THROW 51001, ''Overlapping appointment occupancy is not allowed.'', 1;
 END;');
+
+DROP TABLE #before;
 
 SELECT N'AL_CORTE_TENANT_MIGRATION' AS [event], N'al-corte' AS [businessId], N'al-corte' AS [slug];
