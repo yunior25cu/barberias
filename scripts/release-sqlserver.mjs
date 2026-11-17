@@ -4,6 +4,16 @@ import { join } from "node:path";
 import sql from "mssql";
 
 const mode = process.env.AZURE_SQL_AUTH_MODE ?? "sql";
+const migrationTarget = process.env.ALCORTE_MIGRATION_TARGET;
+const migrationsPath = join(process.cwd(), "prisma", "migrations");
+const names = (await readdir(migrationsPath, { withFileTypes: true }))
+  .filter(entry => entry.isDirectory())
+  .map(entry => entry.name)
+  .sort();
+if (migrationTarget && (process.env.CI !== "true" || !/^sqlserver:\/\/(localhost|127\.0\.0\.1)(:\d+)?;database=barber_local;/i.test(process.env.DATABASE_URL ?? ""))) {
+  throw new Error("ALCORTE_MIGRATION_TARGET is allowed only for the disposable CI database barber_local.");
+}
+if (migrationTarget && !names.includes(migrationTarget)) throw new Error("ALCORTE_MIGRATION_TARGET does not name a checked-in migration.");
 let server = process.env.AZURE_SQL_SERVER;
 let database = process.env.AZURE_SQL_DATABASE;
 let authentication;
@@ -77,11 +87,6 @@ try {
     END;
   `);
 
-  const migrationsPath = join(process.cwd(), "prisma", "migrations");
-  const names = (await readdir(migrationsPath, { withFileTypes: true }))
-    .filter(entry => entry.isDirectory())
-    .map(entry => entry.name)
-    .sort();
   const records = (await pool.request().query("SELECT [migration_name], [checksum], [finished_at], [rolled_back_at] FROM [dbo].[_prisma_migrations]")).recordset;
   const successful = records.filter(row => row.finished_at && !row.rolled_back_at);
   const unknownHistory = successful.filter(row => !names.includes(row.migration_name));
@@ -93,6 +98,8 @@ try {
   const incomplete = records.filter(row => !row.finished_at && !row.rolled_back_at);
   if (incomplete.length) throw new Error(`An incomplete migration exists (${incomplete.map(row => row.migration_name).join(", ")}); resolve it before deployment.`);
 
+  let reachedTarget = false;
+
   for (const name of names) {
     const migrationSql = await readFile(join(migrationsPath, name, "migration.sql"), "utf8");
     const checksum = createHash("sha256").update(migrationSql).digest("hex");
@@ -100,6 +107,7 @@ try {
     if (existing) {
       if (existing.checksum !== checksum) throw new Error(`Checksum mismatch for ${name}; stop and reconcile migration history.`);
       console.log(`Already applied: ${name}`);
+      if (name === migrationTarget) { reachedTarget = true; break; }
       continue;
     }
 
@@ -121,6 +129,7 @@ try {
         .query(`UPDATE [dbo].[_prisma_migrations] SET [finished_at]=@finishedAt,[applied_steps_count]=1 WHERE [id]=@id;`);
       await transaction.commit();
       console.log(`Applied: ${name}`);
+      if (name === migrationTarget) { reachedTarget = true; break; }
     } catch (error) {
       await transaction.rollback().catch(() => undefined);
       await pool.request()
@@ -130,6 +139,7 @@ try {
       throw error;
     }
   }
+  if (migrationTarget && !reachedTarget) throw new Error(`Migration target was not reached: ${migrationTarget}`);
 } finally {
   await pool.close();
 }

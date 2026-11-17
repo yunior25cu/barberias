@@ -1,2 +1,5 @@
-import Booking from "./booking";
-export default function Home(){return <Booking/>}
+import { redirect } from "next/navigation";
+
+export default function Home() {
+  redirect("/al-corte/reservar");
+}

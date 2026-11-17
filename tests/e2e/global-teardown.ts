@@ -1,3 +1,35 @@
 import { loadEnvConfig } from "@next/env";
 import { PrismaClient } from "@prisma/client";
-export default async function globalTeardown(){loadEnvConfig(process.cwd());const connection=process.env.DATABASE_URL??"";if(!/^sqlserver:\/\/(localhost|127\.0\.0\.1)(:\d+)?;/i.test(connection)||!/(?:^|;)database=barber_local(?:;|$)/i.test(connection))throw new Error("E2E teardown only runs against local SQL Server database barber_local.");const db=new PrismaClient();try{const serviceIds=(await db.service.findMany({where:{name:{in:["Corte de prueba E2E","Servicio prueba admin"]}},select:{id:true}})).map(x=>x.id);const staffIds=(await db.staff.findMany({where:{name:{in:["Profesional de prueba","Profesional E2E B","Profesional prueba admin"]}},select:{id:true}})).map(x=>x.id);await db.booking.deleteMany({where:{serviceId:{in:serviceIds}}});await db.timeBlock.deleteMany({where:{staffId:{in:staffIds}}});await db.staff.deleteMany({where:{id:{in:staffIds}}});await db.service.deleteMany({where:{id:{in:serviceIds}}});await db.adminUser.deleteMany({where:{username:"e2e-owner"}});await db.rateLimit.deleteMany({where:{key:{startsWith:"availability:"}}});await db.rateLimit.deleteMany({where:{key:{startsWith:"booking:"}}});await db.rateLimit.deleteMany({where:{key:{startsWith:"manage:"}}});await db.rateLimit.deleteMany({where:{key:{startsWith:"login:"}}});}finally{await db.$disconnect();}}
+
+export default async function globalTeardown() {
+  loadEnvConfig(process.cwd());
+  const connection = process.env.DATABASE_URL ?? "";
+  if (!/^sqlserver:\/\/(localhost|127\.0\.0\.1)(:\d+)?;/i.test(connection) || !/(?:^|;)database=barber_local(?:;|$)/i.test(connection)) {
+    throw new Error("E2E teardown only runs against local SQL Server database barber_local.");
+  }
+  const db = new PrismaClient();
+  const businessIds = ["al-corte", "e2e-business"];
+  try {
+    const serviceIds = (await db.service.findMany({
+      where: { businessId: { in: businessIds }, name: { in: ["Corte de prueba E2E", "Servicio prueba admin", "Servicio solo B"] } }, select: { id: true },
+    })).map(row => row.id);
+    const staffIds = (await db.staff.findMany({
+      where: { businessId: { in: businessIds }, name: { in: ["Profesional de prueba", "Profesional E2E B", "Profesional prueba admin", "Profesional solo B"] } }, select: { id: true },
+    })).map(row => row.id);
+    await db.booking.deleteMany({ where: { businessId: { in: businessIds }, id: { in: ["e2e-repeat-a", "e2e-repeat-b"] } } });
+    await db.booking.deleteMany({ where: { businessId: { in: businessIds }, serviceId: { in: serviceIds } } });
+    await db.timeBlock.deleteMany({ where: { businessId: { in: businessIds }, staffId: { in: staffIds } } });
+    await db.occupancy.deleteMany({ where: { businessId: { in: businessIds }, staffId: { in: staffIds } } });
+    await db.businessHours.deleteMany({ where: { businessId: { in: businessIds }, staffId: { in: staffIds } } });
+    await db.staffService.deleteMany({ where: { businessId: { in: businessIds }, staffId: { in: staffIds } } });
+    await db.staff.deleteMany({ where: { businessId: { in: businessIds }, id: { in: staffIds } } });
+    await db.service.deleteMany({ where: { businessId: { in: businessIds }, id: { in: serviceIds } } });
+    await db.adminUser.deleteMany({ where: { username: "e2e-owner", businessId: { in: businessIds } } });
+    await db.settings.deleteMany({ where: { businessId: "e2e-business" } });
+    await db.business.deleteMany({ where: { id: "e2e-business" } });
+    await db.rateLimit.deleteMany({ where: { key: { startsWith: "tenant:" } } });
+    await db.rateLimit.deleteMany({ where: { key: { startsWith: "global:" } } });
+  } finally {
+    await db.$disconnect();
+  }
+}

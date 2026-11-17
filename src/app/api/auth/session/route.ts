@@ -1,3 +1,3 @@
-import { requireAdmin } from "@/lib/auth";
-import { json } from "@/lib/http";
-export async function GET(){return json({authenticated:await requireAdmin()});}
+import { handleGET } from "@/lib/api-handlers/auth-session";
+import { withInitialBusiness } from "@/lib/business-route";
+export function GET(request: Request) { return withInitialBusiness(business => handleGET(request, business)); }
