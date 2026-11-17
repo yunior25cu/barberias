@@ -75,3 +75,20 @@ Actualizado: 2026-11-17
 ## Criterio global
 
 **AL_CORTE_MVP=NOT PASS** hasta terminar Fase 5 y desplegar de forma autorizada en Fase 6. La agenda, el flujo móvil y la protección contra dobles reservas tienen evidencia real local; no hay URL de producción ni alertas operativas.
+
+## Auditoría de publicación y despliegue — 2026-11-17
+
+**AL_CORTE_PRODUCTION=NOT PASS.** No se publicó código ni se modificó infraestructura productiva.
+
+- `AZURE_SUBSCRIPTION_VERIFIED=PASS`: la suscripción activa coincide con `d7752f9c-fd50-4d17-baa2-2168e2a26d52` y el tenant esperado.
+- El grupo `barberias` contiene el servidor SQL `barberias` y la base `barber_sql`; las consultas de App Service y Static Web Apps no devolvieron recursos. No hay destinos de frontend/backend provisionados allí.
+- `barber_sql` reporta `useFreeLimit=true`, `freeLimitExhaustionBehavior=AutoPause`, nivel General Purpose serverless Gen5 de 2 vCores y estado `Paused`. La retención de backups de largo plazo está desactivada. No se intentó conectar/despertar la base ni se verificaron sus tablas, datos o conectividad.
+- Incompatibilidad de plataforma: este repositorio es Next.js + Prisma + PostgreSQL; no contiene proyectos .NET, React/Vite, EF Core ni migraciones SQL Server. No se aplicaron migraciones a Azure SQL.
+- El repositorio GitHub indicado existe, es público y está vacío (`main`); la conexión GitHub disponible informa `push=false`. El repositorio local no tiene remoto configurado y su rama es `master`. No se intentó publicar.
+- No existen workflows de GitHub Actions. El barrido de secretos no encontró tokens ni claves privadas; no existe `.env` versionado y `.env.example` contiene solo marcadores de configuración.
+- Tras `npm ci`, `npm run lint`, `npm run typecheck`, `npm test` (6 pruebas), `npm run build` y `npm run test:e2e` (2 pruebas) pasaron. La auditoría actual de npm reportó 6 avisos (1 crítico, 4 altos, 1 moderado); se dejan para la fase de endurecimiento pendiente, sin aplicar actualizaciones.
+- `LOCAL_RELEASE_VALIDATION=NOT PASS` para el destino indicado: faltan todos los proyectos y pruebas .NET/EF Core requeridos y el análisis de dependencias presenta avisos pendientes.
+- `GITHUB_MAIN_PUSH=NOT PASS`; `DATABASE_MIGRATION=NOT RUN`; `PRE_MIGRATION_RECOVERY_CHECK=NOT PASS`; `BACKEND_DEPLOYMENT=NOT RUN`; `FRONTEND_DEPLOYMENT=NOT RUN`; `CI/CD=NOT CONFIGURADO`.
+- No se crearon recursos, no se cambió el nivel ni el comportamiento de facturación de SQL y no se configuró una API paga de WhatsApp.
+
+Para continuar esta fase hace falta resolver el destino de despliegue: alinear el proyecto con Azure SQL + .NET/React/Vite, o confirmar un hosting compatible con la arquitectura existente; habilitar escritura al repo GitHub; y provisionar los destinos frontend/backend requeridos. El endurecimiento de seguridad permanece diferido según la instrucción del usuario.
