@@ -8,6 +8,43 @@ import { localDateKey, localMinute } from "@/lib/availability";
 import { phone as normalizePhone, token, tokenHash } from "@/lib/security";
 export async function GET(request:Request){if(!await requireAdmin())return error("Iniciá sesión para ver la agenda.",401);const url=new URL(request.url);const start=new Date(url.searchParams.get("from")??new Date().toISOString());const end=new Date(url.searchParams.get("to")??new Date(start.getTime()+86400_000).toISOString());try{return json({bookings:await db.booking.findMany({where:{startsAt:{gte:start,lt:end}},include:{service:{select:{name:true,durationMinutes:true}},staff:{select:{id:true,name:true}}},orderBy:{startsAt:"asc"}})});}catch{return error("No pudimos cargar la agenda.",503);}}
 const manual=z.object({serviceId:z.string(),staffId:z.string(),startsAt:z.string().datetime(),name:z.string().trim().min(2).max(80),phone:z.string().min(8).max(32)});
-export async function POST(request:Request){if(!await requireAdmin())return error("Iniciá sesión.",401);const body=manual.safeParse(await request.json().catch(()=>null));if(!body.success)return error("Revisá los datos de la reserva.");const start=new Date(body.data.startsAt);const phone=normalizePhone(body.data.phone);if(!phone)return error("Revisá el teléfono.");const manage=token();try{const result=await db.$transaction(async tx=>{await lockOccupancy(tx);const service=await tx.service.findFirst({where:{id:body.data.serviceId,active:true}});const staff=await tx.staff.findFirst({where:{id:body.data.staffId,active:true,services:{some:{serviceId:body.data.serviceId}}}});if(!service||!staff)throw Error("INVALID");const end=new Date(start.getTime()+service.durationMinutes*60000);const weekday=new Date(`${localDateKey(start)}T00:00:00Z`).getUTCDay();const minute=localMinute(start);const hours=await tx.businessHours.findFirst({where:{staffId:staff.id,weekday,startMinute:{lte:minute},endMinute:{gte:minute+service.durationMinutes}}});if(!hours)throw Error("INVALID");const conflict=await tx.occupancy.findFirst({where:{staffId:staff.id,active:true,startsAt:{lt:end},endsAt:{gt:start}}});if(conflict)throw Error("SLOT_TAKEN");const id=randomUUID();const booking=await tx.booking.create({data:{id,code:String(randomInt(100000,999999)),serviceId:service.id,staffId:staff.id,customerName:body.data.name,phoneNormalized:phone,startsAt:start,endsAt:end,manageTokenHash:tokenHash(manage),idempotencyKey:randomUUID()},include:{service:{select:{name:true,durationMinutes:true}},staff:{select:{id:true,name:true}}}});await tx.occupancy.create({data:{staffId:staff.id,bookingId:id,startsAt:start,endsAt:end}});return booking;},{isolationLevel:"ReadCommitted"});return json({booking:result},201);}catch(e){return error(e instanceof Error&&e.message==="INVALID"?"Revisá servicio, profesional y horario.":"El horario ya está ocupado o no pudimos guardar la reserva.",409);}}
+export async function POST(request:Request){
+  if(!await requireAdmin())return error("Iniciá sesión.",401);
+  const body=manual.safeParse(await request.json().catch(()=>null));
+  if(!body.success)return error("Revisá los datos de la reserva.");
+  const start=new Date(body.data.startsAt);
+  const phone=normalizePhone(body.data.phone);
+  if(!phone)return error("Revisá el teléfono.");
+  const manage=token();
+  try{
+    const result=await db.$transaction(async tx=>{
+      await lockOccupancy(tx);
+      const service=await tx.service.findFirst({where:{id:body.data.serviceId,active:true}});
+      if(!service)throw Error("SERVICE_UNAVAILABLE");
+      const staff=await tx.staff.findFirst({where:{id:body.data.staffId,active:true,services:{some:{serviceId:body.data.serviceId}}}});
+      if(!staff)throw Error("STAFF_UNAVAILABLE");
+      const end=new Date(start.getTime()+service.durationMinutes*60000);
+      const weekday=new Date(`${localDateKey(start)}T00:00:00Z`).getUTCDay();
+      const minute=localMinute(start);
+      const hours=await tx.businessHours.findFirst({where:{staffId:staff.id,weekday,startMinute:{lte:minute},endMinute:{gte:minute+service.durationMinutes}}});
+      if(!hours)throw Error("OUTSIDE_BUSINESS_HOURS");
+      const conflict=await tx.occupancy.findFirst({where:{staffId:staff.id,active:true,startsAt:{lt:end},endsAt:{gt:start}}});
+      if(conflict)throw Error("SLOT_TAKEN");
+      const id=randomUUID();
+      const booking=await tx.booking.create({data:{id,code:String(randomInt(100000,999999)),serviceId:service.id,staffId:staff.id,customerName:body.data.name,phoneNormalized:phone,startsAt:start,endsAt:end,manageTokenHash:tokenHash(manage),idempotencyKey:randomUUID()},include:{service:{select:{name:true,durationMinutes:true}},staff:{select:{id:true,name:true}}}});
+      await tx.occupancy.create({data:{staffId:staff.id,bookingId:id,startsAt:start,endsAt:end}});
+      return booking;
+    },{isolationLevel:"ReadCommitted"});
+    return json({booking:result},201);
+  }catch(e){
+    if(e instanceof Error){
+      if(e.message==="SERVICE_UNAVAILABLE")return error("El servicio ya no está disponible. Actualizá e intentá nuevamente.",422);
+      if(e.message==="STAFF_UNAVAILABLE")return error("El profesional seleccionado no está activo o no realiza este servicio.",422);
+      if(e.message==="OUTSIDE_BUSINESS_HOURS")return error("No hay horario configurado para ese profesional en este día, o el turno queda fuera de su jornada. Revisá Horarios.",422);
+      if(e.message==="SLOT_TAKEN")return error("Ese horario ya está ocupado. Actualizá la agenda y elegí otro.",409);
+    }
+    return error("No pudimos guardar la reserva. Probá nuevamente.",503);
+  }
+}
 const change=z.object({id:z.string(),status:z.enum(["confirmed","cancelled","completed","no_show"]).optional(),startsAt:z.string().datetime().optional(),staffId:z.string().optional(),serviceId:z.string().optional()});
 export async function PATCH(request:Request){if(!await requireAdmin())return error("Iniciá sesión.",401);const body=change.safeParse(await request.json().catch(()=>null));if(!body.success)return error("Revisá el cambio.");try{const result=await db.$transaction(async tx=>{await lockOccupancy(tx);const current=await tx.booking.findUnique({where:{id:body.data.id}});if(!current)return null;const status=body.data.status??current.status;if(status!=="confirmed"){await tx.booking.update({where:{id:current.id},data:{status}});await tx.occupancy.updateMany({where:{bookingId:current.id},data:{active:false}});return {id:current.id,status};}const serviceId=body.data.serviceId??current.serviceId;const staffId=body.data.staffId??current.staffId;const service=await tx.service.findUnique({where:{id:serviceId}});const staff=await tx.staff.findFirst({where:{id:staffId,active:true,services:{some:{serviceId}}}});const start=body.data.startsAt?new Date(body.data.startsAt):current.startsAt;if(!service||!staff)throw Error("INVALID");const end=new Date(start.getTime()+service.durationMinutes*60000);const weekday=new Date(`${localDateKey(start)}T00:00:00Z`).getUTCDay();const minute=localMinute(start);const hours=await tx.businessHours.findFirst({where:{staffId,weekday,startMinute:{lte:minute},endMinute:{gte:minute+service.durationMinutes}}});if(!hours)throw Error("INVALID");const conflict=await tx.occupancy.findFirst({where:{staffId,active:true,bookingId:{not:current.id},startsAt:{lt:end},endsAt:{gt:start}}});if(conflict)throw Error("SLOT_TAKEN");await tx.booking.update({where:{id:current.id},data:{status,serviceId,staffId,startsAt:start,endsAt:end}});await tx.occupancy.updateMany({where:{bookingId:current.id},data:{staffId,startsAt:start,endsAt:end,active:true}});return {id:current.id,status,startsAt:start.toISOString(),endsAt:end.toISOString()};},{isolationLevel:"ReadCommitted"});return result?json(result):error("No encontramos la reserva.",404);}catch(e){return error(e instanceof Error&&e.message==="INVALID"?"El profesional no ofrece ese servicio en ese horario.":"El nuevo horario está ocupado.",409);}}
