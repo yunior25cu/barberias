@@ -135,13 +135,13 @@ export async function handlePATCH(request: Request, business: BusinessContext) {
         select: { id: true },
       });
       if (conflict) throw new Error("SLOT_TAKEN");
+      await tx.occupancy.deleteMany({ where: { businessId: business.id, bookingId: current.id } });
       await tx.booking.update({
         where: { id: current.id, businessId: business.id },
         data: { status, serviceId, staffId, startsAt, endsAt },
       });
-      await tx.occupancy.updateMany({
-        where: { businessId: business.id, bookingId: current.id },
-        data: { staffId, startsAt, endsAt, active: true },
+      await tx.occupancy.create({
+        data: { businessId: business.id, bookingId: current.id, staffId, startsAt, endsAt },
       });
       return { id: current.id, status, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() };
     }, { isolationLevel: "ReadCommitted" });

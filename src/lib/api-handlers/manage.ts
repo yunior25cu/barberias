@@ -59,10 +59,10 @@ export async function handlePOST(request: Request, business: BusinessContext) {
           select: { id: true },
         });
         if (conflict) continue;
+        await tx.occupancy.deleteMany({ where: { businessId: business.id, bookingId: booking.id } });
         await tx.booking.update({ where: { id: booking.id, businessId: business.id }, data: { staffId: person.id, startsAt: start, endsAt: end } });
-        await tx.occupancy.updateMany({
-          where: { businessId: business.id, bookingId: booking.id },
-          data: { staffId: person.id, startsAt: start, endsAt: end },
+        await tx.occupancy.create({
+          data: { businessId: business.id, bookingId: booking.id, staffId: person.id, startsAt: start, endsAt: end },
         });
         return { already: false, startsAt: start.toISOString() };
       }
