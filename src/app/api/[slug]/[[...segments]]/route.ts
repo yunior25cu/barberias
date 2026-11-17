@@ -44,4 +44,3 @@ export function POST(request: Request, context: { params: Promise<{ slug: string
 export function PUT(request: Request, context: { params: Promise<{ slug: string; segments?: string[] }> }) { return dispatch("PUT", request, context); }
 export function PATCH(request: Request, context: { params: Promise<{ slug: string; segments?: string[] }> }) { return dispatch("PATCH", request, context); }
 export function DELETE(request: Request, context: { params: Promise<{ slug: string; segments?: string[] }> }) { return dispatch("DELETE", request, context); }
-

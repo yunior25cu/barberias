@@ -30,4 +30,3 @@ export async function handleGET(request: Request, business: BusinessContext) {
 export function GET(request: Request) {
   return withInitialBusiness(business => handleGET(request, business));
 }
-

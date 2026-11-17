@@ -219,4 +219,3 @@ BEGIN
 END;');
 
 SELECT N'AL_CORTE_TENANT_MIGRATION' AS [event], N'al-corte' AS [businessId], N'al-corte' AS [slug];
-

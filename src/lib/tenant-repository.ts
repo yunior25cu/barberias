@@ -84,4 +84,3 @@ function repositoryFor(source: PrismaClient | Prisma.TransactionClient, business
 export function tenantRepository(business: Pick<BusinessContext, "id" | "status">): TenantRepository {
   return repositoryFor(db, requireBusinessId(business), false) as TenantRepository;
 }
-

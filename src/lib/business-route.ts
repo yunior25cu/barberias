@@ -14,4 +14,3 @@ export async function withBusiness(slug: string, run: (business: BusinessContext
 export function withInitialBusiness(run: (business: BusinessContext) => Promise<Response>): Promise<Response> {
   return withBusiness("al-corte", run);
 }
-

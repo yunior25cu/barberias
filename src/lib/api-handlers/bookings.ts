@@ -89,4 +89,3 @@ export async function handlePOST(request: Request, business: BusinessContext) {
 export function POST(request: Request) {
   return withInitialBusiness(business => handlePOST(request, business));
 }
-

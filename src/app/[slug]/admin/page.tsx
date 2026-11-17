@@ -8,4 +8,3 @@ export default async function BusinessAdminPage({ params }: { params: Promise<{ 
   if (!business) notFound();
   return <Admin key={business.id} slug={business.slug} businessName={business.settings?.businessName ?? business.slug} />;
 }
-

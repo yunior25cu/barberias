@@ -10,4 +10,3 @@ export async function handlePOST() {
 export function POST() {
   return handlePOST();
 }
-

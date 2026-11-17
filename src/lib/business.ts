@@ -35,4 +35,3 @@ export function requireBusinessId(business: Pick<BusinessContext, "id" | "status
   if (!business?.id || business.status !== "active") throw new Error("ACTIVE_BUSINESS_CONTEXT_REQUIRED");
   return business.id;
 }
-

@@ -74,4 +74,3 @@ export async function handleDELETE(request: Request, business: BusinessContext) 
 export function GET(request: Request) { return withInitialBusiness(business => handleGET(request, business)); }
 export function POST(request: Request) { return withInitialBusiness(business => handlePOST(request, business)); }
 export function DELETE(request: Request) { return withInitialBusiness(business => handleDELETE(request, business)); }
-

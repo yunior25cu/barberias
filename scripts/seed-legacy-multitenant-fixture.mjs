@@ -58,4 +58,3 @@ try {
 } finally {
   await pool.close();
 }
-

@@ -8,4 +8,3 @@ export function hasSameOrigin(request: Request): boolean {
     return false;
   }
 }
-

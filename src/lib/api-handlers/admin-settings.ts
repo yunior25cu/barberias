@@ -46,4 +46,3 @@ export async function handlePATCH(request: Request, business: BusinessContext) {
 }
 export function GET(request: Request) { return withInitialBusiness(business => handleGET(request, business)); }
 export function PATCH(request: Request) { return withInitialBusiness(business => handlePATCH(request, business)); }
-

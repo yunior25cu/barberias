@@ -18,4 +18,3 @@ export default async function BusinessBookingPage({ params }: Props) {
   if (!business) notFound();
   return <Booking key={business.id} slug={business.slug} businessName={business.settings?.businessName ?? business.slug} />;
 }
-

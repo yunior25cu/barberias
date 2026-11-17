@@ -24,4 +24,3 @@ export async function handleGET(_request: Request, business: BusinessContext) {
 export function GET(request: Request) {
   return withInitialBusiness(business => handleGET(request, business)).catch(() => error("No pudimos cargar los servicios. Probá de nuevo.", 503));
 }
-
