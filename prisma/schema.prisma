@@ -22,6 +22,9 @@ model Business {
   blocks      TimeBlock[]
   occupancy   Occupancy[]
   settings    Settings?
+  activations AdminActivation[]
+  audits      PlatformAudit[]
+  provisioningRequests PlatformProvisioningRequest[]
 }
 
 model AdminUser {
@@ -30,12 +33,69 @@ model AdminUser {
   username       String   @db.NVarChar(100)
   passwordHash   String   @db.NVarChar(255)
   active         Boolean  @default(true)
+  isInitialOwner Boolean  @default(false)
   sessionVersion Int      @default(1)
   createdAt      DateTime @default(now())
   business       Business @relation(fields: [businessId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  activations    AdminActivation[]
   @@unique([username, businessId])
   @@unique([id, businessId])
   @@index([businessId, active])
+  @@index([businessId, isInitialOwner])
+}
+
+model PlatformAdmin {
+  id             String   @id @default(cuid()) @db.NVarChar(40)
+  username       String   @unique @db.NVarChar(100)
+  passwordHash   String   @db.NVarChar(255)
+  active         Boolean  @default(true)
+  sessionVersion Int      @default(1)
+  createdAt      DateTime @default(now()) @db.DateTimeOffset
+  updatedAt      DateTime @updatedAt @db.DateTimeOffset
+  audits         PlatformAudit[]
+  provisioningRequests PlatformProvisioningRequest[]
+}
+
+model AdminActivation {
+  id          String   @id @default(cuid()) @db.NVarChar(40)
+  businessId  String   @db.NVarChar(40)
+  adminUserId String   @db.NVarChar(40)
+  purpose     String   @db.NVarChar(32)
+  tokenHash   String   @unique @db.NVarChar(64)
+  expiresAt   DateTime @db.DateTimeOffset
+  consumedAt  DateTime? @db.DateTimeOffset
+  invalidatedAt DateTime? @db.DateTimeOffset
+  createdAt   DateTime @default(now()) @db.DateTimeOffset
+  business    Business @relation(fields: [businessId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  adminUser   AdminUser @relation(fields: [adminUserId, businessId], references: [id, businessId], onDelete: NoAction, onUpdate: NoAction)
+  @@index([businessId, adminUserId, purpose, expiresAt])
+  @@index([tokenHash, expiresAt, consumedAt])
+}
+
+model PlatformAudit {
+  id          String   @id @default(cuid()) @db.NVarChar(40)
+  actorId     String   @db.NVarChar(40)
+  businessId  String?  @db.NVarChar(40)
+  action      String   @db.NVarChar(60)
+  result      String   @db.NVarChar(20)
+  changesJson String?  @db.NVarChar(Max)
+  createdAt   DateTime @default(now()) @db.DateTimeOffset
+  actor       PlatformAdmin @relation(fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  business    Business? @relation(fields: [businessId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@index([businessId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model PlatformProvisioningRequest {
+  id             String   @id @default(cuid()) @db.NVarChar(40)
+  actorId        String   @db.NVarChar(40)
+  idempotencyKey String   @unique @db.NVarChar(100)
+  requestHash    String   @db.NVarChar(64)
+  businessId     String   @db.NVarChar(40)
+  createdAt      DateTime @default(now()) @db.DateTimeOffset
+  actor          PlatformAdmin @relation(fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  business       Business @relation(fields: [businessId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@index([businessId, createdAt])
 }
 
 model Service {
@@ -153,7 +213,7 @@ model Occupancy {
 
 model Settings {
   businessId           String   @id @db.NVarChar(40)
-  businessName          String   @default("Al Corte") @db.NVarChar(120)
+  businessName          String   @db.NVarChar(120)
   publicPhone           String?  @db.NVarChar(32)
   timezone              String   @default("America/Montevideo") @db.NVarChar(64)
   currency              String   @default("UYU") @db.NVarChar(3)

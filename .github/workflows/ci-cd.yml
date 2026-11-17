@@ -71,11 +71,23 @@ jobs:
       - name: Seed synthetic populated legacy schema
         run: node scripts/seed-legacy-multitenant-fixture.mjs
       - name: Apply incremental tenant migration
+        env:
+          ALCORTE_MIGRATION_TARGET: 20261118000000_add_business_tenancy
         run: npm run db:release
       - name: Verify Prisma migration history
         run: npx prisma migrate status
       - name: Verify preserved data and tenant constraints
         run: node scripts/verify-multitenant-migration.mjs
+      - name: Apply incremental platform migration
+        env:
+          ALCORTE_MIGRATION_TARGET: 20261119000000_platform_panel
+        run: npm run db:release
+      - name: Verify full Prisma migration history
+        run: npx prisma migrate status
+      - name: Verify platform migration and production bootstrap boundaries
+        run: node scripts/verify-platform-migration.mjs
+      - name: Test explicit platform-admin bootstrap and recovery
+        run: node scripts/test-platform-admin-bootstrap.mjs
       - name: Provision disposable test administrator
         run: npm run db:seed
       - name: Lint

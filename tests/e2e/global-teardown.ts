@@ -10,6 +10,25 @@ export default async function globalTeardown() {
   const db = new PrismaClient();
   const businessIds = ["al-corte", "e2e-business"];
   try {
+    const platformBusinesses = await db.business.findMany({ where: { slug: { startsWith: "e2e-platform-" } }, select: { id: true } });
+    const platformIds = platformBusinesses.map(row => row.id);
+    const platformOwner = await db.platformAdmin.findUnique({ where: { username: "e2e-platform-owner" }, select: { id: true } });
+    await db.platformAudit.deleteMany({ where: { businessId: { in: platformIds } } });
+    if (platformOwner) await db.platformAudit.deleteMany({ where: { actorId: platformOwner.id } });
+    await db.platformProvisioningRequest.deleteMany({ where: { businessId: { in: platformIds } } });
+    if (platformOwner) await db.platformProvisioningRequest.deleteMany({ where: { actorId: platformOwner.id } });
+    await db.adminActivation.deleteMany({ where: { businessId: { in: platformIds } } });
+    await db.booking.deleteMany({ where: { businessId: { in: platformIds } } });
+    await db.occupancy.deleteMany({ where: { businessId: { in: platformIds } } });
+    await db.businessHours.deleteMany({ where: { businessId: { in: platformIds } } });
+    await db.staffService.deleteMany({ where: { businessId: { in: platformIds } } });
+    await db.timeBlock.deleteMany({ where: { businessId: { in: platformIds } } });
+    await db.staff.deleteMany({ where: { businessId: { in: platformIds } } });
+    await db.service.deleteMany({ where: { businessId: { in: platformIds } } });
+    await db.settings.deleteMany({ where: { businessId: { in: platformIds } } });
+    await db.adminUser.deleteMany({ where: { businessId: { in: platformIds } } });
+    await db.business.deleteMany({ where: { id: { in: platformIds } } });
+    if (platformOwner) await db.platformAdmin.delete({ where: { id: platformOwner.id } });
     const serviceIds = (await db.service.findMany({
       where: { businessId: { in: businessIds }, name: { in: ["Corte de prueba E2E", "Servicio prueba admin", "Servicio solo B"] } }, select: { id: true },
     })).map(row => row.id);
@@ -29,6 +48,11 @@ export default async function globalTeardown() {
     await db.business.deleteMany({ where: { id: "e2e-business" } });
     await db.rateLimit.deleteMany({ where: { key: { startsWith: "tenant:" } } });
     await db.rateLimit.deleteMany({ where: { key: { startsWith: "global:" } } });
+    await db.rateLimit.deleteMany({ where: { key: { startsWith: "platform-login" } } });
+    await db.rateLimit.deleteMany({ where: { key: { startsWith: "identifier-ip:" } } });
+    await db.rateLimit.deleteMany({ where: { key: { startsWith: "identifier-global:" } } });
+    await db.rateLimit.deleteMany({ where: { key: { startsWith: "identifier:" } } });
+    await db.rateLimit.deleteMany({ where: { key: { startsWith: "activation-ip" } } });
   } finally {
     await db.$disconnect();
   }

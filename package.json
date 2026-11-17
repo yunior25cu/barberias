@@ -20,7 +20,8 @@
     "db:seed": "node prisma/seed.mjs",
     "db:local": "powershell -ExecutionPolicy Bypass -File scripts/db-local.ps1",
     "db:inspect": "node scripts/inspect-sqlserver.mjs",
-    "db:release": "node scripts/release-sqlserver.mjs"
+    "db:release": "node scripts/release-sqlserver.mjs",
+    "platform:admin": "node scripts/platform-admin.mjs"
   },
   "keywords": [],
   "author": "",

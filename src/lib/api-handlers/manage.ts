@@ -22,6 +22,7 @@ export async function handlePOST(request: Request, business: BusinessContext) {
   try {
     const result = await tenant.$transaction(async tx => {
       await tx.lockOccupancy();
+      await tx.assertBusinessActive();
       const booking = await tx.booking.findFirst({
         where: { businessId: business.id, code: body.data.code, manageTokenHash: tokenHash(body.data.manageToken) },
       });
@@ -72,6 +73,7 @@ export async function handlePOST(request: Request, business: BusinessContext) {
     if ("unavailable" in result) return error("Ese horario ya no está disponible. Elegí otro.", 409);
     return json({ cancelled: body.data.action === "cancel", already: result.already, ...("startsAt" in result ? { startsAt: result.startsAt } : {}) });
   } catch (cause) {
+    if (cause instanceof Error && cause.message === "BUSINESS_INACTIVE") return error("Ese negocio no está disponible.", 404);
     if (process.env.CI === "true") {
       const code = cause && typeof cause === "object" && "code" in cause ? String(cause.code) : "unknown";
       console.error("MANAGE_RESCHEDULE_FAILED", { name: cause instanceof Error ? cause.name : "unknown", code });

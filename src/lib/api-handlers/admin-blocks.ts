@@ -28,6 +28,7 @@ export async function handlePOST(request: Request, business: BusinessContext) {
     const tenant = tenantRepository(business);
     const result = await tenant.$transaction(async tx => {
       await tx.lockOccupancy();
+      await tx.assertBusinessActive();
       const staff = await tx.staff.findFirst({ where: { businessId: business.id, id: body.data.staffId, active: true }, select: { id: true } });
       if (!staff) throw new Error("STAFF_UNAVAILABLE");
       const startsAt = new Date(body.data.startsAt), endsAt = new Date(body.data.endsAt);
@@ -59,6 +60,7 @@ export async function handleDELETE(request: Request, business: BusinessContext) 
     const tenant = tenantRepository(business);
     await tenant.$transaction(async tx => {
       await tx.lockOccupancy();
+      await tx.assertBusinessActive();
       const block = await tx.timeBlock.findFirst({ where: { businessId: business.id, id }, select: { id: true } });
       if (!block) throw new Error("NOT_FOUND");
       await tx.occupancy.updateMany({ where: { businessId: business.id, blockId: id }, data: { active: false } });

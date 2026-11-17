@@ -27,6 +27,7 @@ export async function handlePOST(request: Request, business: BusinessContext) {
     const tenant = tenantRepository(business);
     const service = await tenant.$transaction(async tx => {
       await tx.lockOccupancy();
+      await tx.assertBusinessActive();
       return tx.service.create({ data: body.data as Prisma.ServiceUncheckedCreateInput, select: projection });
     });
     return json(service, 201);
@@ -44,6 +45,7 @@ export async function handlePATCH(request: Request, business: BusinessContext) {
     const tenant = tenantRepository(business);
     const service = await tenant.$transaction(async tx => {
       await tx.lockOccupancy();
+      await tx.assertBusinessActive();
       return tx.service.update({ where: { id }, data, select: projection });
     });
     return json(service);

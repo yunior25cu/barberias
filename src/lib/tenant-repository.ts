@@ -8,7 +8,7 @@ const modelNames = [
 ] as const;
 type ModelName = typeof modelNames[number];
 type ScopedDelegates = { [Model in ModelName]: PrismaClient[Model] };
-export type TenantTransactionRepository = ScopedDelegates & { lockOccupancy(): Promise<void> };
+export type TenantTransactionRepository = ScopedDelegates & { lockOccupancy(): Promise<void>; assertBusinessActive(): Promise<void> };
 type TransactionOptions = { maxWait?: number; timeout?: number; isolationLevel?: Prisma.TransactionIsolationLevel };
 export type TenantRepository = ScopedDelegates & {
   $transaction<T>(work: (tx: TenantTransactionRepository) => Promise<T>, options?: TransactionOptions): Promise<T>;
@@ -52,6 +52,13 @@ function repositoryFor(source: PrismaClient | Prisma.TransactionClient, business
       if (property === "lockOccupancy") {
         if (!transactional) throw new Error("OCCUPANCY_LOCK_REQUIRES_TRANSACTION");
         return () => lockOccupancy(source as Prisma.TransactionClient, businessId);
+      }
+      if (property === "assertBusinessActive") {
+        if (!transactional) throw new Error("BUSINESS_STATE_CHECK_REQUIRES_TRANSACTION");
+        return async () => {
+          const business = await (source as Prisma.TransactionClient).business.findUnique({ where: { id: businessId }, select: { status: true } });
+          if (!business || business.status !== "active") throw new Error("BUSINESS_INACTIVE");
+        };
       }
       if (property === "$transaction") {
         if (transactional) throw new Error("NESTED_TENANT_TRANSACTION_NOT_ALLOWED");

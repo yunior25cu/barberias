@@ -4,8 +4,8 @@ import { env } from "@/lib/env";
 import { tenantRepository } from "@/lib/tenant-repository";
 
 const COOKIE = "alcorte_admin";
-const SESSION_VERSION = 1;
-type Claims = { sub: string; biz: string; ver: number; v: number; exp: number };
+const SESSION_VERSION = 2;
+type Claims = { sub: string; biz: string; aud: "tenant"; ver: number; v: number; exp: number };
 
 function sign(value: string) {
   if (!env.SESSION_SECRET) throw new Error("SESSION_SECRET must be configured");
@@ -16,6 +16,7 @@ export function sessionFor(admin: { id: string; businessId: string; sessionVersi
   const payload = Buffer.from(JSON.stringify({
     sub: admin.id,
     biz: admin.businessId,
+    aud: "tenant",
     ver: admin.sessionVersion,
     v: SESSION_VERSION,
     exp: Date.now() + 8 * 60 * 60 * 1000,
@@ -33,7 +34,7 @@ async function claimsForBusiness(businessId: string): Promise<Claims | null> {
     const actual = Buffer.from(signature);
     if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
     const claims = JSON.parse(Buffer.from(payload, "base64url").toString()) as Claims;
-    if (claims.v !== SESSION_VERSION || claims.biz !== businessId || claims.exp <= Date.now()
+    if (claims.aud !== "tenant" || claims.v !== SESSION_VERSION || claims.biz !== businessId || claims.exp <= Date.now()
       || !claims.sub || !Number.isInteger(claims.ver)) return null;
     return claims;
   } catch {

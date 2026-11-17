@@ -48,6 +48,7 @@ export async function handlePOST(request: Request, business: BusinessContext) {
     const tenant = tenantRepository(business);
     const booking = await tenant.$transaction(async tx => {
       await tx.lockOccupancy();
+      await tx.assertBusinessActive();
       const service = await tx.service.findFirst({ where: { businessId: business.id, id: body.data.serviceId, active: true } });
       if (!service) throw new Error("SERVICE_UNAVAILABLE");
       const staff = await tx.staff.findFirst({
@@ -105,6 +106,7 @@ export async function handlePATCH(request: Request, business: BusinessContext) {
     const tenant = tenantRepository(business);
     const result = await tenant.$transaction(async tx => {
       await tx.lockOccupancy();
+      await tx.assertBusinessActive();
       const current = await tx.booking.findFirst({ where: { id: body.data.id, businessId: business.id } });
       if (!current) return null;
       const status = body.data.status ?? current.status;

@@ -1,9 +1,7 @@
 import { createHash } from "node:crypto";
 import { db } from "@/lib/db";
 
-export async function limited(request: Request, bucket: string, max: number, windowMs: number): Promise<boolean | null> {
-  const forwarded = request.headers.get("x-real-ip") ?? request.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? "unknown";
-  const key = `${bucket}:${createHash("sha256").update(forwarded).digest("hex")}`;
+async function limitedKey(key: string, max: number, windowMs: number): Promise<boolean | null> {
   const now = new Date();
   const reset = new Date(now.getTime() + windowMs);
   try {
@@ -32,10 +30,26 @@ export async function limited(request: Request, bucket: string, max: number, win
   }
 }
 
+export async function limited(request: Request, bucket: string, max: number, windowMs: number): Promise<boolean | null> {
+  const forwarded = request.headers.get("x-real-ip") ?? request.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? "unknown";
+  const key = `${bucket}:${createHash("sha256").update(forwarded).digest("hex")}`;
+  return limitedKey(key, max, windowMs);
+}
+
 export async function limitedForBusiness(
   request: Request, businessId: string, bucket: string, max: number, windowMs: number, globalMax = Math.max(max * 4, 32),
 ): Promise<boolean | null> {
   const global = await limited(request, `global:${bucket}`, globalMax, windowMs);
   if (global !== false) return global;
   return limited(request, `tenant:${businessId}:${bucket}`, max, windowMs);
+}
+
+export async function limitedForIdentifier(request: Request, bucket: string, identifier: string, max: number, windowMs: number): Promise<boolean | null> {
+  const normalized = createHash("sha256").update(identifier.toLowerCase()).digest("hex");
+  // Shared NATs and legitimate multi-step flows can make several different
+  // identifiers arrive from one IP. Keep a wider IP ceiling and enforce the
+  // tighter limit on the hashed identifier below.
+  const byIp = await limited(request, `identifier-ip:${bucket}`, max * 4, windowMs);
+  if (byIp !== false) return byIp;
+  return limitedKey(`identifier:${createHash("sha256").update(`${bucket}:${normalized}`).digest("hex")}`, max * 3, windowMs);
 }

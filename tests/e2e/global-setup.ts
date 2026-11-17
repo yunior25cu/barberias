@@ -15,6 +15,29 @@ export default async function globalSetup() {
   const allServiceIds = ["e2e-service", "e2e-service-b", "e2e-admin-service"];
   const allStaffIds = ["e2e-staff", "e2e-staff-2", "e2e-staff-b", "e2e-admin-staff"];
   try {
+    const stalePlatformBusinesses = await db.business.findMany({ where: { slug: { startsWith: "e2e-platform-" } }, select: { id: true } });
+    const stalePlatformIds = stalePlatformBusinesses.map(row => row.id);
+    const stalePlatformServices = await db.service.findMany({ where: { businessId: { in: stalePlatformIds } }, select: { id: true } });
+    const stalePlatformStaff = await db.staff.findMany({ where: { businessId: { in: stalePlatformIds } }, select: { id: true } });
+    await db.booking.deleteMany({ where: { businessId: { in: stalePlatformIds } } });
+    await db.occupancy.deleteMany({ where: { businessId: { in: stalePlatformIds } } });
+    await db.businessHours.deleteMany({ where: { businessId: { in: stalePlatformIds } } });
+    await db.staffService.deleteMany({ where: { businessId: { in: stalePlatformIds } } });
+    await db.timeBlock.deleteMany({ where: { businessId: { in: stalePlatformIds } } });
+    await db.staff.deleteMany({ where: { id: { in: stalePlatformStaff.map(row => row.id) } } });
+    await db.service.deleteMany({ where: { id: { in: stalePlatformServices.map(row => row.id) } } });
+    await db.platformAudit.deleteMany({ where: { businessId: { in: stalePlatformIds } } });
+    await db.platformProvisioningRequest.deleteMany({ where: { businessId: { in: stalePlatformIds } } });
+    await db.adminActivation.deleteMany({ where: { businessId: { in: stalePlatformIds } } });
+    await db.settings.deleteMany({ where: { businessId: { in: stalePlatformIds } } });
+    await db.adminUser.deleteMany({ where: { businessId: { in: stalePlatformIds } } });
+    await db.business.deleteMany({ where: { id: { in: stalePlatformIds } } });
+    const stalePlatformOwner = await db.platformAdmin.findUnique({ where: { username: "e2e-platform-owner" }, select: { id: true } });
+    if (stalePlatformOwner) {
+      await db.platformAudit.deleteMany({ where: { actorId: stalePlatformOwner.id } });
+      await db.platformProvisioningRequest.deleteMany({ where: { actorId: stalePlatformOwner.id } });
+    }
+    await db.platformAdmin.deleteMany({ where: { username: "e2e-platform-owner" } });
     await db.booking.deleteMany({ where: { businessId: { in: [initialBusinessId, secondBusinessId] }, serviceId: { in: allServiceIds } } });
     await db.timeBlock.deleteMany({ where: { businessId: { in: [initialBusinessId, secondBusinessId] }, staffId: { in: allStaffIds } } });
     await db.occupancy.deleteMany({ where: { businessId: { in: [initialBusinessId, secondBusinessId] }, staffId: { in: allStaffIds } } });
@@ -25,6 +48,10 @@ export default async function globalSetup() {
     await db.adminUser.deleteMany({ where: { username: "e2e-owner", businessId: { in: [initialBusinessId, secondBusinessId] } } });
     await db.rateLimit.deleteMany({ where: { key: { startsWith: "tenant:" } } });
     await db.rateLimit.deleteMany({ where: { key: { startsWith: "global:" } } });
+    await db.rateLimit.deleteMany({ where: { key: { startsWith: "identifier:" } } });
+    await db.rateLimit.deleteMany({ where: { key: { startsWith: "identifier-ip:" } } });
+    await db.rateLimit.deleteMany({ where: { key: { startsWith: "activation-ip:" } } });
+    await db.rateLimit.deleteMany({ where: { key: { startsWith: "identifier:activation-token:" } } });
 
     await db.business.upsert({
       where: { id: secondBusinessId }, update: { slug: "e2e-b", status: "active" },
@@ -64,6 +91,9 @@ export default async function globalSetup() {
         { businessId: secondBusinessId, username: "e2e-owner", passwordHash },
       ],
     });
+    await db.platformAdmin.create({ data: {
+      username: "e2e-platform-owner", passwordHash: await bcrypt.hash("E2E-platform-password-123!", 4), active: true,
+    } });
 
     const sharedStart = new Date(Date.now() + 45 * 86_400_000);
     sharedStart.setUTCHours(3, 0, 0, 0);

@@ -29,6 +29,7 @@ export async function handlePOST(request: Request, business: BusinessContext) {
     const tenant = tenantRepository(business);
     const staff = await tenant.$transaction(async tx => {
       await tx.lockOccupancy();
+      await tx.assertBusinessActive();
       const services = await tx.service.findMany({ where: { businessId: business.id, id: { in: serviceIds } }, select: { id: true } });
       if (services.length !== serviceIds.length) throw new Error("FOREIGN_SERVICE");
       const row = await tx.staff.create({ data: { id: randomUUID(), businessId: business.id, name: body.data.name } });
@@ -53,6 +54,7 @@ export async function handlePATCH(request: Request, business: BusinessContext) {
     const tenant = tenantRepository(business);
     await tenant.$transaction(async tx => {
       await tx.lockOccupancy();
+      await tx.assertBusinessActive();
       const existing = await tx.staff.findFirst({ where: { id, businessId: business.id }, select: { id: true } });
       if (!existing) throw new Error("NOT_FOUND");
       if (serviceIds) {

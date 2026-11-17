@@ -31,6 +31,7 @@ export async function handlePUT(request: Request, business: BusinessContext) {
     const tenant = tenantRepository(business);
     await tenant.$transaction(async tx => {
       await tx.lockOccupancy();
+      await tx.assertBusinessActive();
       const staff = await tx.staff.findFirst({ where: { id: body.data.staffId, businessId: business.id }, select: { id: true } });
       if (!staff) throw new Error("NOT_FOUND");
       await tx.businessHours.deleteMany({ where: { businessId: business.id, staffId: staff.id } });

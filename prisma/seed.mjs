@@ -17,7 +17,7 @@ try {
     update: { passwordHash, sessionVersion: { increment: 1 } },
     create: { businessId: initialBusinessId, username: process.env.ADMIN_USERNAME, passwordHash },
   });
-  await db.settings.upsert({ where: { businessId: initialBusinessId }, update: {}, create: { businessId: initialBusinessId } });
+  await db.settings.upsert({ where: { businessId: initialBusinessId }, update: {}, create: { businessId: initialBusinessId, businessName: "Al Corte" } });
   if (process.env.SEED_DEMO_DATA === "true" && process.env.NODE_ENV !== "production") {
     const existing = await db.service.findFirst({ where: { businessId: initialBusinessId } });
     if (!existing) {

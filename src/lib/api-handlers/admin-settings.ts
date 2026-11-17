@@ -28,13 +28,15 @@ export async function handlePATCH(request: Request, business: BusinessContext) {
   if (!hasSameOrigin(request)) return error("Solicitud no válida.", 403);
   const body = schema.safeParse(await request.json().catch(() => null));
   if (!body.success) return error("Revisá los ajustes del local.");
+  if (!body.data.businessName && !business.settings?.businessName) return error("El nombre del negocio es obligatorio.", 422);
   try {
     const tenant = tenantRepository(business);
     const settings = await tenant.$transaction(async tx => {
       await tx.lockOccupancy();
+      await tx.assertBusinessActive();
       return tx.settings.upsert({
         where: { businessId: business.id },
-        create: { businessId: business.id, ...body.data },
+        create: { businessId: business.id, ...body.data, businessName: body.data.businessName ?? business.settings!.businessName },
         update: body.data,
         select: projection,
       });

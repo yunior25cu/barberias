@@ -33,6 +33,7 @@ export async function handlePOST(request: Request, business: BusinessContext) {
   try {
     const booking = await tenant.$transaction(async tx => {
       await tx.lockOccupancy();
+      await tx.assertBusinessActive();
       const existing = await tx.booking.findFirst({ where: { businessId: business.id, idempotencyKey: key } });
       if (existing) {
         const sameRequest = existing.serviceId === parsed.data.serviceId
@@ -79,6 +80,7 @@ export async function handlePOST(request: Request, business: BusinessContext) {
     }, { isolationLevel: "ReadCommitted" });
     return json({ code: booking.code, manageToken: manage, startsAt: booking.startsAt.toISOString(), status: booking.status });
   } catch (e) {
+    if (e instanceof Error && e.message === "BUSINESS_INACTIVE") return error("Ese negocio no está disponible.", 404);
     if (e instanceof Error && e.message === "IDEMPOTENCY_KEY_REUSED") return error("No pudimos verificar esta solicitud. Iniciá una reserva nueva.", 409);
     if (e instanceof Error && e.message === "SLOT_TAKEN") return error("Ese horario se acaba de ocupar. Elegí otro.", 409);
     if (e instanceof Error && e.message === "INVALID_SLOT") return error("Ese horario ya no está disponible. Elegí otro.", 409);
