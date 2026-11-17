@@ -158,3 +158,8 @@ Para continuar esta fase hace falta resolver el destino de despliegue: alinear e
 - Validaciones locales observadas: `npx prisma validate` PASS, `npm run typecheck` PASS, `npm run lint` PASS sin advertencias, `npm test` 5 PASS / 4 SQL omitidas. No hay Docker disponible para este proceso (acceso al engine denegado), por eso no se ejecutaron CI SQL/E2E/build localmente. No se afirma que la migración ni el aislamiento de runtime estén verificados hasta que pase CI sobre la rama.
 - Los endpoints, seeds y fixtures se revisan contra IDs cruzados, usuarios repetidos, idempotencia por tenant, revocación de sesión, reservas sin teléfono y agenda concurrente. El aprovisionamiento del segundo negocio permanece cerrado hasta la validación completa y el corte autorizado.
 - Gates actuales: `DATABASE_MIGRATION=NOT PASS` (productiva no inspeccionable y CI pendiente); `DOUBLE_BOOKING_PROTECTION=NOT PASS` para este commit hasta test SQL/HTTP verde; `SECURITY_GATE=NOT PASS` hasta CI/audit completos; `E2E=NOT PASS` (no ejecutado); `AL_CORTE_PRODUCTION=NOT PASS`. No se cambiaron secretos, configuración ni datos productivos.
+
+### Seguimiento CI multi-tenant
+
+- El run `44103760208` ejecutó CI contra `1a5c6f8`. Pasaron SQL Server listo, baseline, seed sintético y audit; la migración tenant detectó `Incorrect syntax near the keyword 'rowCount'`. Se delimitó esa columna en las consultas del archivo SQL. Reejecutar CI antes de cualquier siguiente fase.
+- La suite E2E ahora incluye rechazo de slugs desconocidos/anteriores, revocación por `sessionVersion`, intento de relación cruzada sin altas residuales y reserva/reprogramación/cancelación sin teléfono. El E2E con teléfono sigue cubierto. La suite contiene 6 escenarios; falta ejecución verde del runner.

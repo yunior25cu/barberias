@@ -29,11 +29,13 @@ test("separa catálogo, sesiones y relaciones entre negocios", async ({ page }) 
   expect((await page.request.get("/api/al-corte/admin/services")).status()).toBe(200);
   expect((await page.request.get("/api/e2e-b/admin/services")).status()).toBe(401);
 
+  const staffBefore = (await (await page.request.get("/api/al-corte/admin/staff")).json()).staff.length;
   const invalidRelation = await page.request.post("/api/al-corte/admin/staff", {
     headers: { Origin: new URL(page.url()).origin },
     data: { name: "No debe crearse", serviceIds: ["e2e-service-b"] },
   });
   expect(invalidRelation.status()).toBe(422);
+  expect((await (await page.request.get("/api/al-corte/admin/staff")).json()).staff).toHaveLength(staffBefore);
 
   const crossTenantToken = await page.request.post("/api/e2e-b/manage", {
     data: { code: "222222", manageToken: "e2e-manage-token-for-business-a", action: "cancel" },
@@ -129,6 +131,38 @@ test("active slugs reject renamed businesses and admin sessions are revoked", as
     expect((await page.request.get("/api/e2e-b-renamed/services")).status()).toBe(200);
   } finally {
     if (originalSlug) await db.business.update({ where: { id: "e2e-business" }, data: { slug: originalSlug } });
+    await db.$disconnect();
+  }
+});
+
+test("public booking can be managed without a phone number", async ({ page }) => {
+  const db = new PrismaClient();
+  try {
+    await page.goto("/e2e-b/reservar");
+    await page.getByRole("button", { name: /Servicio solo B/ }).click();
+    await page.getByRole("button", { name: /Elegir d/ }).click();
+    const dayFor = (daysAhead: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Montevideo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + daysAhead * 86400_000));
+    const dateInput = page.locator('input[type="date"]');
+    await dateInput.fill(dayFor(15));
+    await page.getByRole("button", { name: "09:00" }).click();
+    await page.getByRole("button", { name: /Continuar/ }).click();
+    await page.getByLabel("Tu nombre").fill("Reserva sin telefono");
+    await expect(page.getByLabel("Teléfono (opcional)")).not.toHaveAttribute("required", "");
+    await page.getByRole("button", { name: "Confirmar reserva" }).click();
+    await expect(page.getByRole("heading", { name: /Reserva sin telefono/ })).toBeVisible();
+    const saved = await db.booking.findFirst({ where: { businessId: "e2e-business", customerName: "Reserva sin telefono" }, select: { id: true, phoneNormalized: true } });
+    expect(saved?.phoneNormalized).toBe("");
+
+    await page.getByRole("button", { name: "Cambiar horario" }).click();
+    await dateInput.fill(dayFor(16));
+    await page.getByRole("button", { name: "09:00" }).click();
+    await page.getByRole("button", { name: /Continuar/ }).click();
+    await page.getByRole("button", { name: "Cambiar horario" }).click();
+    await expect(page.getByRole("heading", { name: /Reserva sin telefono/ })).toBeVisible();
+    page.once("dialog", dialog => dialog.accept());
+    await page.getByRole("button", { name: "Cancelar reserva" }).click();
+    await expect(page.getByText("La reserva quedó cancelada.")).toBeVisible();
+  } finally {
     await db.$disconnect();
   }
 });

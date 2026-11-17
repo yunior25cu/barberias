@@ -29,7 +29,7 @@ INSERT INTO @before VALUES
  (N'Booking',(SELECT COUNT_BIG(*) FROM dbo.Booking)),
  (N'TimeBlock',(SELECT COUNT_BIG(*) FROM dbo.TimeBlock)),
  (N'Occupancy',(SELECT COUNT_BIG(*) FROM dbo.Occupancy));
-IF (SELECT rowCount FROM @before WHERE tableName=N'Settings')>1
+IF (SELECT [rowCount] FROM @before WHERE [tableName]=N'Settings')>1
   THROW 51112, 'More than one legacy Settings row exists; inspect before tenant migration.', 1;
 
 IF EXISTS (
@@ -173,9 +173,9 @@ INSERT INTO @after VALUES
  (N'Booking',(SELECT COUNT_BIG(*) FROM dbo.Booking)),
  (N'TimeBlock',(SELECT COUNT_BIG(*) FROM dbo.TimeBlock)),
  (N'Occupancy',(SELECT COUNT_BIG(*) FROM dbo.Occupancy));
-IF EXISTS (SELECT tableName,rowCount FROM @before WHERE tableName<>N'Settings' EXCEPT SELECT tableName,rowCount FROM @after WHERE tableName<>N'Settings')
- OR EXISTS (SELECT tableName,rowCount FROM @after WHERE tableName<>N'Settings' EXCEPT SELECT tableName,rowCount FROM @before WHERE tableName<>N'Settings')
- OR (SELECT rowCount FROM @after WHERE tableName=N'Settings')<>1
+IF EXISTS (SELECT [tableName],[rowCount] FROM @before WHERE [tableName]<>N'Settings' EXCEPT SELECT [tableName],[rowCount] FROM @after WHERE [tableName]<>N'Settings')
+ OR EXISTS (SELECT [tableName],[rowCount] FROM @after WHERE [tableName]<>N'Settings' EXCEPT SELECT [tableName],[rowCount] FROM @before WHERE [tableName]<>N'Settings')
+ OR (SELECT [rowCount] FROM @after WHERE [tableName]=N'Settings')<>1
   THROW 51110, 'The tenant migration changed application row counts; transaction must roll back.', 1;
 IF EXISTS (SELECT 1 FROM dbo.AdminUser WHERE businessId IS NULL)
  OR EXISTS (SELECT 1 FROM dbo.Settings WHERE businessId IS NULL)
