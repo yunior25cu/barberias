@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import sql from "mssql";
@@ -24,6 +25,11 @@ if (mode === "service-principal") {
   const { AZURE_SQL_CLIENT_ID: clientId, AZURE_SQL_CLIENT_SECRET: clientSecret, AZURE_SQL_TENANT_ID: tenantId } = process.env;
   if (!server || !database || !clientId || !clientSecret || !tenantId) throw new Error("Azure SQL server, database, and service-principal credentials are required.");
   authentication = { type: "azure-active-directory-service-principal-secret", options: { clientId, clientSecret, tenantId } };
+} else if (mode === "azure-cli") {
+  if (!server || !database) throw new Error("Azure SQL server and database are required for Azure CLI authentication.");
+  const token = execFileSync("az", ["account", "get-access-token", "--resource", "https://database.windows.net/", "--query", "accessToken", "--output", "tsv"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  if (!token) throw new Error("Azure CLI did not return an Azure SQL access token.");
+  authentication = { type: "azure-active-directory-access-token", options: { token } };
 } else if (mode === "sql") {
   const connection = process.env.DATABASE_URL ?? "";
   const parts = connection.split(";");
@@ -44,7 +50,7 @@ if (mode === "service-principal") {
   user = parameters.user;
   password = parameters.password;
 } else {
-  throw new Error("Migrations support AZURE_SQL_AUTH_MODE=sql or service-principal.");
+  throw new Error("Migrations support AZURE_SQL_AUTH_MODE=sql, service-principal, or azure-cli.");
 }
 
 const pool = await new sql.ConnectionPool({
