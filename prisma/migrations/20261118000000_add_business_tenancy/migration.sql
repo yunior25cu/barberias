@@ -110,8 +110,8 @@ ALTER TABLE dbo.Settings DROP CONSTRAINT CK_Settings_singleton;
 ALTER TABLE dbo.Settings DROP CONSTRAINT PK_Settings;
 ALTER TABLE dbo.Settings DROP CONSTRAINT DF_Settings_id;
 ALTER TABLE dbo.Settings DROP COLUMN [id];
-IF NOT EXISTS (SELECT 1 FROM dbo.Settings WHERE businessId=N'al-corte')
-  INSERT INTO dbo.Settings ([businessId],[businessName]) VALUES (N'al-corte',N'Al Corte');
+IF (SELECT [rowCount] FROM @before WHERE [tableName]=N'Settings')=0
+  EXEC sys.sp_executesql N'INSERT INTO dbo.Settings ([businessId],[businessName]) VALUES (N''al-corte'',N''Al Corte'');';
 
 ALTER TABLE dbo.AdminUser ALTER COLUMN businessId NVARCHAR(40) NOT NULL;
 ALTER TABLE dbo.Service ALTER COLUMN businessId NVARCHAR(40) NOT NULL;

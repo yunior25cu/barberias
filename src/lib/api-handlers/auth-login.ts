@@ -6,12 +6,14 @@ import { sessionFor, adminCookieName } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { error, json } from "@/lib/http";
 import { limitedForBusiness } from "@/lib/rate-limit";
+import { hasSameOrigin } from "@/lib/origin";
 import { withInitialBusiness } from "@/lib/business-route";
 import type { BusinessContext } from "@/lib/business";
 
 const bodySchema = z.object({ username: z.string().trim().min(1).max(100), password: z.string().min(1).max(200) });
 
 export async function handlePOST(request: Request, business: BusinessContext) {
+  if (!hasSameOrigin(request)) return error("Solicitud no vÃ¡lida.", 403);
   const limit = await limitedForBusiness(request, business.id, "login", 8, 15 * 60_000, 24);
   if (limit === true) return error("Demasiados intentos. Esperá unos minutos y probá de nuevo.", 429);
   if (limit === null) return error("No pudimos iniciar sesión ahora. Probá de nuevo.", 503);
