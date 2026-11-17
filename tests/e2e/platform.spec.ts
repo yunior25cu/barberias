@@ -164,7 +164,7 @@ test("plataforma provisiona, activa y aísla tres negocios con auditoría y revo
   const currentPublicPage = await page.request.get(`/${provisioned[0].slug}/reservar`);
   expect(await currentPublicPage.text()).toContain("Nombre actualizado desde plataforma A");
   await page.goto(`/${provisioned[0].slug}/reservar`);
-  await expect(page).toHaveTitle(/Reservas \| Nombre actualizado desde plataforma A/);
+  await expect(page).toHaveTitle("Nombre actualizado desde plataforma A – Reservá tu hora");
 
   const listing = await page.request.get("/api/plataforma/businesses?q=Nombre%20actualizado");
   const listingBody = await listing.text();
@@ -190,7 +190,7 @@ test("plataforma provisiona, activa y aísla tres negocios con auditoría y revo
   await page.getByLabel("Nombre del local").fill("Nombre editado desde ajustes A");
   await page.getByRole("button", { name: "Guardar ajustes" }).click();
   await expect(page.getByRole("link", { name: "Nombre editado desde ajustes A" })).toBeVisible();
-  await expect(page).toHaveTitle(/Administración \| Nombre editado desde ajustes A/);
+  await expect(page).toHaveTitle("Panel del responsable | Nombre editado desde ajustes A");
 
   const disable = await page.request.patch(`/api/plataforma/businesses/${provisioned[0].id}/status`, { headers: { Origin: origin }, data: { status: "inactive" } });
   expect(disable.status()).toBe(200);

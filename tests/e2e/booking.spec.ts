@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 async function loginAs(page: import("@playwright/test").Page, slug: string) {
   await page.goto(`/${slug}/admin`);
+  await expect(page).toHaveTitle(new RegExp(`Panel del responsable \\|`));
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex.*nofollow/);
   await page.getByLabel("Usuario").fill("e2e-owner");
   await page.getByLabel("Contraseña").fill("E2E-only-password-123!");
   const loginResponse = page.waitForResponse(response =>
@@ -14,7 +16,7 @@ async function loginAs(page: import("@playwright/test").Page, slug: string) {
   await expect(page.getByRole("heading", { name: /Agenda del/ })).toBeVisible();
 }
 test("reserva completa desde viewport móvil sin crear una cuenta",async({page})=>{
-  await page.goto("/al-corte/reservar");await expect(page.getByRole("heading",{name:"¿Qué te gustaría hacerte?"})).toBeVisible();
+  await page.goto("/al-corte/reservar");await expect(page).toHaveTitle("Al Corte – Reservá tu hora");await expect(page.locator('meta[name="description"]')).toHaveAttribute("content","Elegí tu servicio y reservá tu hora en pocos pasos.");await expect(page.locator('meta[property="og:description"]')).toHaveAttribute("content","Elegí tu servicio y reservá tu hora en pocos pasos.");await expect(page.getByRole("heading",{name:"¿Qué te gustaría hacerte?"})).toBeVisible();
   await page.getByRole("button",{name:/Corte de prueba E2E/}).click();await expect(page.getByRole("button",{name:"Cualquier profesional disponible"})).toBeVisible();await page.getByRole("button",{name:"Profesional E2E B"}).click();await page.getByRole("button",{name:/Elegir día y hora/}).click();
   const date=new Date(Date.now()+7*86400_000);const day=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Montevideo",year:"numeric",month:"2-digit",day:"2-digit"}).format(date);
   await page.getByLabel("Elegí un día").fill(day);await page.getByRole("button",{name:"09:00"}).click();await page.getByRole("button",{name:/Continuar/}).click();
