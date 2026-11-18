@@ -198,11 +198,15 @@ test("el administrador crea, reemplaza y elimina imagenes optimizadas de servici
   await serviceCard.getByRole("button", { name: "Editar" }).click();
   const edit = serviceCard.locator("form").filter({ has: page.getByRole("heading", { name: "Editar servicio" }) });
   await edit.getByLabel("Reemplazar imagen (opcional)").setInputFiles({ name: "replacement.png", mimeType: "image/png", buffer: imageFixture(30, 120, 210) });
+  const replacementIntentResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/e2e-b/admin/service-images" && response.request().method() === "POST");
+  const replacementSaveResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/e2e-b/admin/service-images" && response.request().method() === "PATCH");
   await edit.getByRole("button", { name: "Guardar cambios" }).click();
+  expect((await replacementIntentResponse).status()).toBe(200);
+  expect((await replacementSaveResponse).status()).toBe(200);
   await expect(serviceCard.getByRole("img", { name: "Imagen de Imagen E2E" })).toBeVisible();
   const secondUrl = await getImageUrl();
   expect(secondUrl).toMatch(/^http/);
-  expect(secondUrl).not.toBe(firstUrl);
+  expect(new URL(secondUrl!).pathname).not.toBe(new URL(firstUrl!).pathname);
   expect((await page.request.get(firstUrl!)).status()).toBe(404);
 
   await page.goto("/e2e-b/reservar");
@@ -233,6 +237,7 @@ test("public booking can be managed without a phone number", async ({ page }) =>
   try {
     await loginAs(page, "e2e-b");
     await page.getByRole("button", { name: "Ajustes" }).click();
+  await expect(page.getByLabel("Dirección del local")).toHaveValue("Av. 18 de Julio 1000, Montevideo, Uruguay");
     await page.getByLabel("Dirección del local").fill("Bulevar Artigas 1234, Montevideo, Uruguay");
     await page.getByRole("button", { name: "Guardar ajustes" }).click();
     await expect(page.getByText("Ajustes guardados.")).toBeVisible();
