@@ -31,10 +31,15 @@ async function loginAs(page: import("@playwright/test").Page, slug: string) {
   await expect(page).toHaveTitle(new RegExp(`Panel del responsable \\|`));
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex.*nofollow/);
   const username = page.getByLabel("Usuario");
-  if (!(await username.isVisible().catch(() => false))) {
+  const agenda = page.getByRole("heading", { name: /Agenda del/ });
+  const loginFormVisible = await Promise.race([
+    username.waitFor({ state: "visible", timeout: 10_000 }).then(() => true).catch(() => false),
+    agenda.waitFor({ state: "visible", timeout: 10_000 }).then(() => false).catch(() => null),
+  ]);
+  if (loginFormVisible === null) throw new Error(`Admin panel for ${slug} did not load its login form or authenticated agenda.`);
+  if (!loginFormVisible) {
     // Tests may revisit the admin panel in the same browser context. Reuse its
     // still-valid session instead of expecting the login form a second time.
-    await expect(page.getByRole("heading", { name: /Agenda del/ })).toBeVisible();
     return;
   }
   await username.fill("e2e-owner");
