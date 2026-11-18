@@ -8,7 +8,8 @@ export default defineConfig({
   globalSetup: "./tests/e2e/global-setup.ts",
   globalTeardown: "./tests/e2e/global-teardown.ts",
   fullyParallel: false,
+  workers: process.env.CI ? 1 : undefined,
   reporter: "list",
-  use: { baseURL, ...devices["iPhone 13"], browserName: "chromium" },
+  use: { baseURL, ...devices["iPhone 13"], browserName: "chromium", trace: "retain-on-failure" },
   webServer: { command: `npm run dev -- --port ${port}`, url: baseURL, reuseExistingServer: !process.env.CI, timeout: 120_000, env: { NEXT_DIST_DIR: ".next-e2e" } },
 });

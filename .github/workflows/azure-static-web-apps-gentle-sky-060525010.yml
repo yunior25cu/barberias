@@ -43,3 +43,8 @@ jobs:
           api_location: ""
           output_location: ""
           app_build_command: "npm run build"
+
+      - name: Verify production health and public catalog
+        env:
+          PRODUCTION_BASE_URL: https://gentle-sky-060525010.4.azurestaticapps.net
+        run: node scripts/smoke-production.mjs

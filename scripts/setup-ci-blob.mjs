@@ -17,7 +17,7 @@ for (let attempt = 0; attempt < 30 && !ready; attempt++) {
   }
 }
 await service.setProperties({ cors: [{
-  allowedOrigins: "http://127.0.0.1:3000",
+  allowedOrigins: "http://localhost:3000,http://127.0.0.1:3000",
   allowedMethods: "PUT",
   allowedHeaders: "content-type,x-ms-blob-type,x-ms-version",
   exposedHeaders: "etag",

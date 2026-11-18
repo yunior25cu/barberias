@@ -13,6 +13,16 @@ async function tokenFrom(link: string) {
   return token!;
 }
 
+async function assertPlatformSession(page: import("@playwright/test").Page, origin: string) {
+  const response = await page.request.get("/api/plataforma/session");
+  const body = await response.text();
+  const cookieMetadata = (await page.context().cookies(origin))
+    .filter(cookie => cookie.name === "alcorte_platform")
+    .map(({ name, domain, path, secure, httpOnly, sameSite, expires }) => ({ name, domain, path, secure, httpOnly, sameSite, expires }));
+  expect(response.status(), `Platform session check failed: status=${response.status()}, body=${body.slice(0, 300)}, cookieMetadata=${JSON.stringify(cookieMetadata)}`).toBe(200);
+  expect(JSON.parse(body).authenticated, `Platform session is not authenticated; cookieMetadata=${JSON.stringify(cookieMetadata)}`).toBe(true);
+}
+
 test("plataforma provisiona, activa y aísla tres negocios con auditoría y revocación", async ({ page, baseURL }) => {
   const origin = baseURL!;
   await page.goto("/plataforma");
@@ -21,6 +31,8 @@ test("plataforma provisiona, activa y aísla tres negocios con auditoría y revo
   await page.getByLabel("Contraseña").fill(ownerPassword);
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page.getByRole("heading", { name: "Negocios" })).toBeVisible();
+
+  await assertPlatformSession(page, origin);
 
   const unauthorizedContext = await request.newContext({ baseURL: origin });
   expect((await unauthorizedContext.get("/api/plataforma/businesses")).status()).toBe(401);
@@ -31,7 +43,9 @@ test("plataforma provisiona, activa y aísla tres negocios con auditoría y revo
   expect(tenantLogin.status()).toBe(200);
   expect((await tenantOnly.get("/api/plataforma/businesses")).status()).toBe(401);
   await tenantOnly.dispose();
-  expect((await page.request.get("/api/plataforma/businesses")).status()).toBe(200);
+  await assertPlatformSession(page, origin);
+  const businessesResponse = await page.request.get("/api/plataforma/businesses");
+  expect(businessesResponse.status(), `Platform businesses request failed after authenticated session check: status=${businessesResponse.status()}, body=${(await businessesResponse.text()).slice(0, 300)}`).toBe(200);
   await page.context().clearCookies();
   const platformOnly = await page.request.post("/api/plataforma/login", { headers: { Origin: origin }, data: { username: ownerUser, password: ownerPassword } });
   expect(platformOnly.status()).toBe(200);

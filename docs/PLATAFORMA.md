@@ -35,6 +35,10 @@ Para recuperar una cuenta existente, usá `PLATFORM_ADMIN_ACTION=recover` y el m
 
 El alta usa una transacción SQL, una clave idempotente persistente, unicidad de slug, un responsable inicial pendiente y una entrada de auditoría. Un reintento de la misma solicitud devuelve el negocio existente, pero no recupera un token en claro. Si el enlace se perdió, el propietario puede emitir uno nuevo; la acción invalida el anterior, desactiva la cuenta hasta la activación y revoca las sesiones.
 
+## Ubicación y mapa de reservas
+
+Cada responsable debe guardar la dirección del local en `/{slug}/admin` → **Ajustes** → **Dirección del local**. En desarrollo, configurá `NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` en `.env.local` y reiniciá `npm run dev`. La clave se incluye en el navegador: habilitá Maps Embed API y restringila por HTTP referrer (incluí `http://localhost:3000/*` y el dominio productivo). Sin dirección se informa que falta configurar la ubicación; sin clave se muestra el aviso de mapa no configurado y sigue disponible el enlace de indicaciones.
+
 ## Cambios y recuperación
 
 - La edición del nombre o teléfono público desde el panel actualiza `Settings` y registra una auditoría sin teléfono de clientes, reservas ni agenda.
