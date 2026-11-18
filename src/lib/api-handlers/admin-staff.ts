@@ -46,7 +46,7 @@ export async function handlePOST(request: Request, business: BusinessContext) {
 export async function handlePATCH(request: Request, business: BusinessContext) {
   if (!await requireAdmin(business.id)) return error("Iniciá sesión.", 401);
   if (!hasSameOrigin(request)) return error("Solicitud no válida.", 403);
-  const body = z.object({ id: z.string(), name: z.string().trim().min(2).max(80).optional(), active: z.boolean().optional(), serviceIds: z.array(z.string().min(1)).max(30).optional() }).safeParse(await request.json().catch(() => null));
+  const body = z.object({ id: z.string(), name: z.string().trim().min(2).max(80).optional(), active: z.boolean().optional(), serviceIds: z.array(z.string().min(1)).min(1).max(30).optional() }).safeParse(await request.json().catch(() => null));
   if (!body.success) return error("Revisá los datos del profesional.");
   const { id, serviceIds: rawServiceIds, ...data } = body.data;
   const serviceIds = rawServiceIds === undefined ? undefined : [...new Set(rawServiceIds)];

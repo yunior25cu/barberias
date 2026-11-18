@@ -36,6 +36,8 @@ export default function ServicesPanel({ apiBase }: { apiBase: string }) {
   const [editImage, setEditImage] = useState<File | null>(null);
   const [editForm, setEditForm] = useState<Form>(emptyForm);
   const [removeImageId, setRemoveImageId] = useState("");
+  const [editingStaff, setEditingStaff] = useState("");
+  const [staffEditForm, setStaffEditForm] = useState<{ name: string; serviceIds: string[] }>({ name: "", serviceIds: [] });
 
   const reload = useCallback(() => {
     payload("/api/admin/services").then(data => setServices(data.services)).catch(reason => setError(reason.message));
@@ -121,6 +123,29 @@ export default function ServicesPanel({ apiBase }: { apiBase: string }) {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo actualizar el profesional."); }
   }
 
+  function startStaffEdit(member: Staff) {
+    setError("");
+    setEditingStaff(current => current === member.id ? "" : member.id);
+    setStaffEditForm({ name: member.name, serviceIds: member.services?.map(item => item.service.id) ?? [] });
+  }
+
+  async function saveStaff(event: React.FormEvent, member: Staff) {
+    event.preventDefault();
+    if (!staffEditForm.serviceIds.length) {
+      setError("Seleccioná al menos un servicio para el profesional.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await payload("/api/admin/staff", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: member.id, name: staffEditForm.name, serviceIds: staffEditForm.serviceIds }),
+      });
+      setEditingStaff(""); setError(""); reload();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo actualizar el profesional."); }
+    finally { setSaving(false); }
+  }
+
   const imageInput = (label: string, onChange: (file: File | null) => void) => <label>{label}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => onChange(event.target.files?.[0] ?? null)} /></label>;
 
   return <div>
@@ -165,7 +190,16 @@ export default function ServicesPanel({ apiBase }: { apiBase: string }) {
       </div>
     </div>
     <form className="admin-form" onSubmit={addStaff} style={{ marginTop: 20 }}><h3>Agregar profesional</h3><label>Nombre<input required value={person} onChange={event => setPerson(event.target.value)} /></label><p className="notice">Servicios que realiza</p>{services.filter(service => service.active).map(service => <label key={service.id} className="checkrow"><input type="checkbox" checked={selected.includes(service.id)} onChange={event => setSelected(event.target.checked ? [...selected, service.id] : selected.filter(id => id !== service.id))} />{service.name}</label>)}<button className="primary" disabled={!selected.length}>Agregar al equipo</button></form>
-    <h3>Equipo</h3>{staff.map(member => <div className="summary item-row" key={member.id}><div><strong>{member.name}</strong><br /><span className="notice">{member.services?.map(item => item.service.name).join(", ")} · {member.active ? "Activo" : "Inactivo"}</span></div><button className="secondary" onClick={() => toggleStaff(member)}>{member.active ? "Pausar" : "Activar"}</button></div>)}
+    <h3>Equipo</h3>{staff.map(member => <div className="summary staff-item-row" key={member.id}>
+      <div className="item-row"><div><strong>{member.name}</strong><br /><span className="notice">{member.services?.map(item => item.service.name).join(", ")} · {member.active ? "Activo" : "Inactivo"}</span></div><div className="staff-actions"><button type="button" className="secondary" onClick={() => startStaffEdit(member)}>{editingStaff === member.id ? "Cerrar edición" : "Editar"}</button><button type="button" className="secondary" onClick={() => toggleStaff(member)}>{member.active ? "Pausar" : "Activar"}</button></div></div>
+      {editingStaff === member.id && <form className="admin-form" onSubmit={event => saveStaff(event, member)}>
+        <h3>Editar profesional</h3>
+        <label>Nombre del profesional<input required minLength={2} maxLength={80} value={staffEditForm.name} onChange={event => setStaffEditForm(current => ({ ...current, name: event.target.value }))} /></label>
+        <p className="notice">Servicios que realiza</p>
+        {services.map(service => <label key={service.id} className="checkrow"><input type="checkbox" checked={staffEditForm.serviceIds.includes(service.id)} onChange={event => setStaffEditForm(current => ({ ...current, serviceIds: event.target.checked ? [...current.serviceIds, service.id] : current.serviceIds.filter(id => id !== service.id) }))} />{service.name}{service.active ? "" : " (inactivo)"}</label>)}
+        <button className="primary" disabled={saving || !staffEditForm.serviceIds.length}>{saving ? "Guardando…" : "Guardar profesional"}</button>
+      </form>}
+    </div>)}
     <ConfirmDialog open={Boolean(removeImageId)} title="Quitar imagen del servicio" description="¿Querés quitar esta imagen? La imagen dejará de mostrarse en las reservas." confirmLabel="Quitar imagen" danger onConfirm={removeImage} onClose={() => setRemoveImageId("")} />
   </div>;
 }
