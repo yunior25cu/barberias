@@ -31,7 +31,7 @@ jobs:
           --health-retries 30
           --health-start-period 10s
       azurite:
-        image: mcr.microsoft.com/azure-storage/azurite:3.36.0
+        image: mcr.microsoft.com/azure-storage/azurite:3.37.0
         ports:
           - 10000:10000
     env:
