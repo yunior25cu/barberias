@@ -2,7 +2,7 @@ name: Al Corte Quality Gates
 
 on:
   push:
-    branches: [barber, integration/multi-tenant]
+    branches: [barber]
   pull_request:
     branches: [main]
   workflow_call:
