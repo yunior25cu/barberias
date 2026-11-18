@@ -62,7 +62,7 @@ export default function Platform() {
 
   async function login(event: React.FormEvent) {
     event.preventDefault(); setErrorMessage("");
-    try { await api("/api/plataforma/login", { method: "POST", body: JSON.stringify({ username, password }) }); setPassword(""); setAuthenticated(true); }
+    try { await api("/api/plataforma/login", { method: "POST", body: JSON.stringify({ username, password }) }); const session = await api<{ authenticated: boolean }>("/api/plataforma/session"); if (!session.authenticated) throw new Error("Session verification failed."); setPassword(""); setAuthenticated(true); }
     catch (error) { setErrorMessage(error instanceof Error ? error.message : "No pudimos iniciar sesión."); }
   }
 

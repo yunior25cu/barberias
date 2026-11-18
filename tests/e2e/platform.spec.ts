@@ -29,7 +29,11 @@ test("plataforma provisiona, activa y aísla tres negocios con auditoría y revo
   await expect(page).toHaveTitle(/Administración de negocios/);
   await page.getByLabel("Usuario").fill(ownerUser);
   await page.getByLabel("Contraseña").fill(ownerPassword);
+  const platformLogin = page.waitForResponse(response => new URL(response.url()).pathname === "/api/plataforma/login" && response.request().method() === "POST");
   await page.getByRole("button", { name: "Entrar" }).click();
+  const loginResponse = await platformLogin;
+  const loginBody = await loginResponse.json();
+  expect(loginResponse.status(), `Platform login failed: status=${loginResponse.status()}, body=${JSON.stringify(loginBody)}`).toBe(200);
   await expect(page.getByRole("heading", { name: "Negocios" })).toBeVisible();
 
   await assertPlatformSession(page, origin);
