@@ -30,7 +30,14 @@ async function loginAs(page: import("@playwright/test").Page, slug: string) {
   await page.goto(`/${slug}/admin`);
   await expect(page).toHaveTitle(new RegExp(`Panel del responsable \\|`));
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex.*nofollow/);
-  await page.getByLabel("Usuario").fill("e2e-owner");
+  const username = page.getByLabel("Usuario");
+  if (!(await username.isVisible().catch(() => false))) {
+    // Tests may revisit the admin panel in the same browser context. Reuse its
+    // still-valid session instead of expecting the login form a second time.
+    await expect(page.getByRole("heading", { name: /Agenda del/ })).toBeVisible();
+    return;
+  }
+  await username.fill("e2e-owner");
   await page.getByLabel("Contraseña").fill("E2E-only-password-123!");
   const loginResponse = page.waitForResponse(response =>
     new URL(response.url()).pathname === `/api/${slug}/auth/login` && response.request().method() === "POST",
