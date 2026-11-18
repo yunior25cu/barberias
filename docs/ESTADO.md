@@ -226,3 +226,25 @@ Esta entrada supersede los estados de planificación antiguos de este documento 
 - No se configuro Google Cloud, no se agrego ninguna clave, no se cambio `barber_sql`, no hubo push ni despliegue. Para habilitar el mapa se requiere configurar Maps Embed API y el secreto `GOOGLE_MAPS_EMBED_KEY` siguiendo las instrucciones de entrega.
 
 **Gates:** `GOOGLE_MAPS_IMPLEMENTATION=PASS`; `LOCAL_E2E=NOT RUN` (sin SQL local); `GOOGLE_MAPS_CREDENTIAL=BLOCKED` (requiere configuracion externa); `DATABASE_MIGRATION=NOT RUN`; `DEPLOYMENT=NOT RUN`.
+
+## Imágenes de servicios con Azure Blob - 2026-11-18
+
+- Se añadió `Service.imageBlobName` nullable y la migración incremental SQL Server `20261121000000_add_service_images`; inspecciona `dbo.Service` y agrega únicamente la columna si todavía falta. La actualización local del 2026-11-18 se registra abajo; `barber_sql` no fue modificada.
+- El formulario de servicios permite cargar/reemplazar/quitar imagen. El navegador convierte JPEG/PNG/WebP a WebP, limita entrada a 12 MiB/24 MP y salida a 500 KiB/1440 px por lado. Los bytes van directo al contenedor Blob privado; SQL conserva solo el nombre del objeto.
+- El servidor emite SAS por objeto con vida corta para creación de un nuevo blob y lectura limitada; valida en Blob el MIME, WebP real, resolución y tamaño, limita la clave al tenant/servicio y elimina el objeto anterior tras reemplazo. Las URLs usan claves únicas para evitar caché obsoleta. Los endpoints públicos no exponen nombres internos de blob.
+- La reserva presenta miniatura sobre la card sin agregar flujo ni alterar sus dimensiones; un diálogo accesible permite ampliar sin salir del proceso. El flujo E2E incluye crear, reemplazar, descargar/verificar formato, bloquear overwrite con SAS de creación, aislamiento por tenant, modal móvil y eliminación.
+- CI crea Azurite y un contenedor aislado con CORS para Playwright; el workflow aplica la migración nueva antes de la suite E2E. `.env.example` solo contiene un placeholder; no se incluyó ninguna clave real.
+- Comprobaciones locales: `npm run lint=PASS` (sin errores ni advertencias); `npm run typecheck=PASS`; `npm test=PASS` (5 pasan, 4 SQL omitidas); `npx prisma validate=PASS`; `npm audit --omit=dev --audit-level=moderate=PASS` (0 vulnerabilidades); `npm run build=PASS`; `git diff --check=PASS`.
+- `npm run test:e2e=NOT RUN`: el entorno local no tiene `DATABASE_URL` para `barber_local`; el setup exige esa base y Azurite local. Los E2E de imágenes están incorporados para CI, aún no ejecutados localmente.
+- Azure no fue modificado por esta implementación. El propietario informó que ya configuró la cuenta Blob, CORS y settings de SWA; esa configuración externa no fue verificada desde el entorno. No se hizo push ni despliegue durante la implementación.
+
+**Gates de implementación:** `IMAGE_UPLOAD_IMPLEMENTATION=PASS`; `LOCAL_E2E=NOT RUN`; `CI_E2E=NOT RUN`; `DATABASE_MIGRATION_LOCAL=PASS`; `AZURE_BLOB_CONFIGURATION=OWNER_REPORTED_CONFIGURED, NOT VERIFIED`; `DEPLOYMENT=NOT RUN`.
+
+### Migración local aplicada - 2026-11-18
+
+- Se inspeccionó `barber_local` antes de migrar: 1 negocio y 1 fila de ajustes; 26 claves foráneas y 18 constraints CHECK confiables y habilitadas. El historial tenía aplicadas la base, tenancy y plataforma; dirección e imagen faltaban. Había intentos previos revertidos de migraciones anteriores, sin cambiar los registros completados.
+- Usando `prisma migrate deploy` sobre la instancia local SQL Server `SQLEXPRESS`, se aplicaron `20261120000000_add_business_address` y `20261121000000_add_service_images`. No se creó una segunda base ni se tocó `barber_sql`.
+- Verificación posterior: `prisma migrate status=PASS` (las 5 migraciones del repositorio registradas y schema up to date); `Settings.businessAddress=NVARCHAR(300)`; `Service.imageBlobName=NVARCHAR(300)`; se conservaron 1 fila de negocio y 1 de ajustes; todos los FKs y CHECKs permanecen confiables y habilitados.
+- La cadena integrada de conexión se usó solo en el proceso de migración y no se guardó en archivos del repositorio.
+
+**Resultado:** `BARBER_LOCAL_MIGRATIONS=PASS`; `BARBER_SQL=NOT MODIFIED`.

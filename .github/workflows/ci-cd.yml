@@ -30,11 +30,17 @@ jobs:
           --health-timeout 5s
           --health-retries 30
           --health-start-period 10s
+      azurite:
+        image: mcr.microsoft.com/azure-storage/azurite:3.36.0
+        ports:
+          - 10000:10000
     env:
       DATABASE_URL: sqlserver://localhost:1433;database=barber_local;user=sa;password=AlCorte-CI-Sql-2026!;encrypt=true;trustServerCertificate=true
       MSSQL_SA_PASSWORD: AlCorte-CI-Sql-2026!
       SESSION_SECRET: 0123456789abcdef0123456789abcdef-ci-only
       NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY: ci-only-restricted-key-placeholder
+      AZURE_STORAGE_CONNECTION_STRING: UseDevelopmentStorage=true
+      AZURE_STORAGE_CONTAINER: alcorte-ci-service-images
       ADMIN_USERNAME: ci-owner
       ADMIN_PASSWORD: Ci-only-password-2026!
       APP_URL: http://127.0.0.1:3000
@@ -88,6 +94,12 @@ jobs:
         env:
           ALCORTE_MIGRATION_TARGET: 20261120000000_add_business_address
         run: npm run db:release
+      - name: Apply incremental service image migration
+        env:
+          ALCORTE_MIGRATION_TARGET: 20261121000000_add_service_images
+        run: npm run db:release
+      - name: Prepare isolated Azure Blob emulator
+        run: node scripts/setup-ci-blob.mjs
       - name: Verify full Prisma migration history
         run: npx prisma migrate status
       - name: Verify platform migration and production bootstrap boundaries

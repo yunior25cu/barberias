@@ -14,6 +14,7 @@ import { handleGET as adminStaffGET, handlePOST as adminStaffPOST, handlePATCH a
 import { handleGET as adminHoursGET, handlePUT as adminHoursPUT } from "@/lib/api-handlers/admin-hours";
 import { handleGET as adminBlocksGET, handlePOST as adminBlocksPOST, handleDELETE as adminBlocksDELETE } from "@/lib/api-handlers/admin-blocks";
 import { handleGET as adminSettingsGET, handlePATCH as adminSettingsPATCH } from "@/lib/api-handlers/admin-settings";
+import { handlePOST as adminServiceImagesPOST, handlePATCH as adminServiceImagesPATCH, handleDELETE as adminServiceImagesDELETE } from "@/lib/api-handlers/admin-service-images";
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 type Handler = (request: Request, business: BusinessContext) => Promise<Response>;
@@ -27,6 +28,7 @@ const routes: Record<string, Partial<Record<Method, Handler>>> = {
   "auth/logout": { POST: logoutPOST },
   "admin/bookings": { GET: adminBookingsGET, POST: adminBookingsPOST, PATCH: adminBookingsPATCH },
   "admin/services": { GET: adminServicesGET, POST: adminServicesPOST, PATCH: adminServicesPATCH },
+  "admin/service-images": { POST: adminServiceImagesPOST, PATCH: adminServiceImagesPATCH, DELETE: adminServiceImagesDELETE },
   "admin/staff": { GET: adminStaffGET, POST: adminStaffPOST, PATCH: adminStaffPATCH },
   "admin/hours": { GET: adminHoursGET, PUT: adminHoursPUT },
   "admin/blocks": { GET: adminBlocksGET, POST: adminBlocksPOST, DELETE: adminBlocksDELETE },

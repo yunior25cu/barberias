@@ -6,17 +6,24 @@ import { error, json } from "@/lib/http";
 import { hasSameOrigin } from "@/lib/origin";
 import { withInitialBusiness } from "@/lib/business-route";
 import type { BusinessContext } from "@/lib/business";
+import { createServiceImageReadUrl } from "@/lib/service-image-storage";
 
 const input = z.object({
   name: z.string().trim().min(2).max(80), description: z.string().max(240).nullable().optional(),
   durationMinutes: z.number().int().min(5).max(480), priceCents: z.number().int().min(0).nullable().optional(), active: z.boolean().optional(),
 });
-const projection = { id: true, name: true, description: true, durationMinutes: true, priceCents: true, active: true, sortOrder: true } as const;
+const projection = { id: true, name: true, description: true, durationMinutes: true, priceCents: true, imageBlobName: true, active: true, sortOrder: true } as const;
+function withoutImageBlobName<T extends { imageBlobName: string | null }>(service: T) {
+  const safeService = { ...service };
+  Reflect.deleteProperty(safeService, "imageBlobName");
+  return safeService;
+}
 
 export async function handleGET(_request: Request, business: BusinessContext) {
   if (!await requireAdmin(business.id)) return error("Iniciá sesión.", 401);
   const services = await tenantRepository(business).service.findMany({ orderBy: { sortOrder: "asc" }, select: projection });
-  return json({ services });
+  const withImageUrls = await Promise.all(services.map(async ({ imageBlobName, ...service }) => ({ ...service, imageUrl: imageBlobName ? await createServiceImageReadUrl(imageBlobName) : null })));
+  return json({ services: withImageUrls });
 }
 export async function handlePOST(request: Request, business: BusinessContext) {
   if (!await requireAdmin(business.id)) return error("Iniciá sesión.", 401);
@@ -30,7 +37,7 @@ export async function handlePOST(request: Request, business: BusinessContext) {
       await tx.assertBusinessActive();
       return tx.service.create({ data: body.data as Prisma.ServiceUncheckedCreateInput, select: projection });
     });
-    return json(service, 201);
+    return json(withoutImageBlobName(service), 201);
   } catch {
     return error("No pudimos guardar el servicio.", 503);
   }
@@ -48,7 +55,7 @@ export async function handlePATCH(request: Request, business: BusinessContext) {
       await tx.assertBusinessActive();
       return tx.service.update({ where: { id }, data, select: projection });
     });
-    return json(service);
+    return json(withoutImageBlobName(service));
   } catch {
     return error("No pudimos actualizar el servicio.", 404);
   }

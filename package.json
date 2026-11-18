@@ -29,9 +29,11 @@
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
+    "@azure/storage-blob": "^12.34.0",
     "@prisma/adapter-mssql": "6.19.3",
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.2",
+    "image-size": "^2.1.0",
     "mssql": "11.0.2",
     "next": "^16.4.6",
     "react": "^19.3.1",

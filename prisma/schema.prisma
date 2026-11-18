@@ -105,6 +105,7 @@ model Service {
   description     String?        @db.NVarChar(500)
   durationMinutes Int
   priceCents      Int?
+  imageBlobName   String?        @db.NVarChar(300)
   active          Boolean        @default(true)
   sortOrder       Int            @default(0)
   business        Business       @relation(fields: [businessId], references: [id], onDelete: NoAction, onUpdate: NoAction)

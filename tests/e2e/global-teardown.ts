@@ -30,7 +30,7 @@ export default async function globalTeardown() {
     await db.business.deleteMany({ where: { id: { in: platformIds } } });
     if (platformOwner) await db.platformAdmin.delete({ where: { id: platformOwner.id } });
     const serviceIds = (await db.service.findMany({
-      where: { businessId: { in: businessIds }, name: { in: ["Corte de prueba E2E", "Servicio prueba admin", "Servicio solo B"] } }, select: { id: true },
+      where: { businessId: { in: businessIds }, name: { in: ["Corte de prueba E2E", "Servicio prueba admin", "Servicio solo B", "Imagen E2E"] } }, select: { id: true },
     })).map(row => row.id);
     const staffIds = (await db.staff.findMany({
       where: { businessId: { in: businessIds }, name: { in: ["Profesional de prueba", "Profesional E2E B", "Profesional prueba admin", "Profesional solo B"] } }, select: { id: true },

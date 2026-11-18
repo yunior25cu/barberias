@@ -1,5 +1,31 @@
 import { expect, test } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { deflateSync } from "node:zlib";
+import { imageSize } from "image-size";
+
+function imageFixture(red: number, green: number, blue: number) {
+  const crc32 = (buffer: Buffer) => {
+    let crc = 0xffffffff;
+    for (const byte of buffer) {
+      crc ^= byte;
+      for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer) => {
+    const typeBuffer = Buffer.from(type);
+    const result = Buffer.alloc(data.length + 12);
+    result.writeUInt32BE(data.length, 0);
+    typeBuffer.copy(result, 4);
+    data.copy(result, 8);
+    result.writeUInt32BE(crc32(Buffer.concat([typeBuffer, data])), result.length - 4);
+    return result;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(2, 0); header.writeUInt32BE(2, 4); header[8] = 8; header[9] = 6;
+  const row = Buffer.from([0, red, green, blue, 255, red, green, blue, 255]);
+  return Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), chunk("IHDR", header), chunk("IDAT", deflateSync(Buffer.concat([row, row]))), chunk("IEND", Buffer.alloc(0))]);
+}
 async function loginAs(page: import("@playwright/test").Page, slug: string) {
   await page.goto(`/${slug}/admin`);
   await expect(page).toHaveTitle(new RegExp(`Panel del responsable \\|`));
@@ -131,6 +157,75 @@ test("active slugs reject renamed businesses and admin sessions are revoked", as
     if (originalSlug) await db.business.update({ where: { id: "e2e-business" }, data: { slug: originalSlug } });
     await db.$disconnect();
   }
+});
+
+test("el administrador crea, reemplaza y elimina imagenes optimizadas de servicios; la reserva permite ampliarlas en movil", async ({ page }) => {
+  await loginAs(page, "e2e-b");
+  await page.getByRole("button", { name: "Servicios y equipo" }).click();
+  const creation = page.locator("form").filter({ has: page.getByRole("heading", { name: "Agregar servicio" }) });
+  await creation.getByLabel("Nombre").fill("Imagen E2E");
+  await creation.getByLabel("Duración (minutos)").fill("30");
+  await creation.getByLabel("Imagen del servicio (opcional)").setInputFiles({ name: "image.png", mimeType: "image/png", buffer: imageFixture(190, 60, 40) });
+  const uploadIntentResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/e2e-b/admin/service-images" && response.request().method() === "POST");
+  await creation.getByRole("button", { name: "Guardar servicio" }).click();
+  const uploadIntent = await (await uploadIntentResponse).json();
+
+  const serviceCard = page.locator(".service-admin-card").filter({ hasText: "Imagen E2E" });
+  await expect(serviceCard.getByRole("img", { name: "Imagen de Imagen E2E" })).toBeVisible();
+  const getImageUrl = async (): Promise<string | null> => {
+    const response = await page.request.get("/api/e2e-b/services");
+    expect(response.status()).toBe(200);
+    const item = (await response.json()).services.find((service: { name: string }) => service.name === "Imagen E2E");
+    expect(item).toBeDefined();
+    return item.imageUrl as string | null;
+  };
+  const firstUrl = await getImageUrl();
+  expect(firstUrl).toMatch(/^http/);
+  expect((await (await page.request.get("/api/al-corte/services")).json()).services.every((service: { imageUrl: string | null; imageBlobName?: string }) => service.imageUrl === null && service.imageBlobName === undefined)).toBe(true);
+  const firstImage = await page.request.get(firstUrl!);
+  expect(firstImage.status()).toBe(200);
+  expect(firstImage.headers()["content-type"]).toContain("image/webp");
+  const originalImageBytes = await firstImage.body();
+  expect(originalImageBytes.byteLength).toBeLessThanOrEqual(500 * 1024);
+  expect(imageSize(originalImageBytes).type).toBe("webp");
+  expect(imageSize(originalImageBytes).width).toBeLessThanOrEqual(1440);
+  const overwrite = await page.request.put(uploadIntent.uploadUrl, {
+    headers: { "x-ms-blob-type": "BlockBlob", "Content-Type": "image/webp" }, data: originalImageBytes,
+  });
+  expect(overwrite.status()).toBeGreaterThanOrEqual(400);
+  expect(await (await page.request.get(firstUrl!)).body()).toEqual(originalImageBytes);
+
+  await serviceCard.getByRole("button", { name: "Editar" }).click();
+  const edit = serviceCard.locator("form").filter({ has: page.getByRole("heading", { name: "Editar servicio" }) });
+  await edit.getByLabel("Reemplazar imagen (opcional)").setInputFiles({ name: "replacement.png", mimeType: "image/png", buffer: imageFixture(30, 120, 210) });
+  await edit.getByRole("button", { name: "Guardar cambios" }).click();
+  await expect(serviceCard.getByRole("img", { name: "Imagen de Imagen E2E" })).toBeVisible();
+  const secondUrl = await getImageUrl();
+  expect(secondUrl).toMatch(/^http/);
+  expect(secondUrl).not.toBe(firstUrl);
+  expect((await page.request.get(firstUrl!)).status()).toBe(404);
+
+  await page.goto("/e2e-b/reservar");
+  const publicCard = page.locator(".service-choice-wrap").filter({ has: page.getByRole("button", { name: /Imagen E2E/ }) });
+  const before = await publicCard.boundingBox();
+  await publicCard.getByRole("button", { name: "Ampliar imagen de Imagen E2E" }).click();
+  const viewer = page.getByRole("dialog", { name: "Imagen ampliada" });
+  await expect(viewer.getByRole("img", { name: "Imagen E2E" })).toBeVisible();
+  await viewer.getByRole("button", { name: "Cerrar imagen" }).click();
+  const after = await publicCard.boundingBox();
+  expect(before && after).toBeTruthy();
+  expect(after!.width).toBe(before!.width);
+  expect(after!.height).toBe(before!.height);
+
+  await loginAs(page, "e2e-b");
+  await page.getByRole("button", { name: "Servicios y equipo" }).click();
+  const removable = page.locator(".service-admin-card").filter({ hasText: "Imagen E2E" });
+  await removable.getByRole("button", { name: "Quitar imagen" }).click();
+  const confirmation = page.getByRole("dialog", { name: "Quitar imagen del servicio" });
+  await confirmation.getByRole("button", { name: "Quitar imagen" }).click();
+  await expect(removable.getByRole("img", { name: "Imagen de Imagen E2E" })).toHaveCount(0);
+  expect(await getImageUrl()).toBeNull();
+  expect((await page.request.get(secondUrl!)).status()).toBe(404);
 });
 
 test("public booking can be managed without a phone number", async ({ page }) => {
