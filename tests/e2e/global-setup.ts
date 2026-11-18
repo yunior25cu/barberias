@@ -58,8 +58,8 @@ export default async function globalSetup() {
       create: { id: secondBusinessId, slug: "e2e-b", status: "active" },
     });
     await db.settings.upsert({
-      where: { businessId: secondBusinessId }, update: { businessName: "Negocio E2E B" },
-      create: { businessId: secondBusinessId, businessName: "Negocio E2E B" },
+      where: { businessId: secondBusinessId }, update: { businessName: "Negocio E2E B", businessAddress: "Av. 18 de Julio 1000, Montevideo, Uruguay" },
+      create: { businessId: secondBusinessId, businessName: "Negocio E2E B", businessAddress: "Av. 18 de Julio 1000, Montevideo, Uruguay" },
     });
     await db.service.create({ data: { id: "e2e-service", businessId: initialBusinessId, name: "Corte de prueba E2E", durationMinutes: 30, active: true } });
     await db.staff.create({

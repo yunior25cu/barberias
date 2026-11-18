@@ -18,6 +18,7 @@ export async function handleGET(_request: Request, business: BusinessContext) {
     services,
     currency: business.settings?.currency ?? "UYU",
     cancellationPolicy: business.settings?.cancellationPolicy ?? "Consultá al local para cambiar o cancelar.",
+    businessAddress: business.settings?.businessAddress ?? null,
   });
 }
 

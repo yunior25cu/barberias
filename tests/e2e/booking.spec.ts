@@ -136,6 +136,14 @@ test("active slugs reject renamed businesses and admin sessions are revoked", as
 test("public booking can be managed without a phone number", async ({ page }) => {
   const db = new PrismaClient();
   try {
+    await loginAs(page, "e2e-b");
+    await page.getByRole("button", { name: "Ajustes" }).click();
+    await page.getByLabel("Dirección del local").fill("Bulevar Artigas 1234, Montevideo, Uruguay");
+    await page.getByRole("button", { name: "Guardar ajustes" }).click();
+    await expect(page.getByText("Ajustes guardados.")).toBeVisible();
+    const savedSettings = await page.request.get("/api/e2e-b/admin/settings");
+    expect((await savedSettings.json()).settings.businessAddress).toBe("Bulevar Artigas 1234, Montevideo, Uruguay");
+    expect((await (await page.request.get("/api/al-corte/services")).json()).businessAddress).toBeNull();
     await page.goto("/e2e-b/reservar");
     await page.getByRole("button", { name: /Servicio solo B/ }).click();
     await page.getByRole("button", { name: /Elegir d/ }).click();
@@ -144,6 +152,9 @@ test("public booking can be managed without a phone number", async ({ page }) =>
     await dateInput.fill(dayFor(15));
     await page.getByRole("button", { name: "09:00" }).click();
     await page.getByRole("button", { name: /Continuar/ }).click();
+    await expect(page.getByRole("region", { name: "Ubicación del local" })).toBeVisible();
+    await expect(page.getByTitle("Mapa de Negocio E2E B")).toHaveAttribute("src", /maps\/embed\/v1\/place/);
+    await expect(page.getByRole("link", { name: "Cómo llegar en Google Maps" })).toHaveAttribute("href", /destination=Bulevar%20Artigas%201234%2C%20Montevideo%2C%20Uruguay/);
     await page.getByLabel("Tu nombre").fill("Reserva sin telefono");
     await expect(page.getByLabel("Teléfono (opcional)")).not.toHaveAttribute("required", "");
     await page.getByRole("button", { name: "Confirmar reserva" }).click();

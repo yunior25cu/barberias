@@ -215,3 +215,14 @@ Esta entrada supersede los estados de planificación antiguos de este documento 
 - Suites que requieren SQL y regresión de tenants deben ejecutarse mediante CI con su SQL efímero. Aún no se ha hecho push ni despliegue. Capturas locales: `test-results/` (no versionadas).
 
 **Gates de esta fase:** `LANDING=PASS`; `CTA=PASS`; `SEO=PASS`; `ACCESSIBILITY=PARTIAL` (axe/contraste pendientes); `TENANT_REGRESSION=NOT RUN` (CI/SQL pendiente); `CI=NOT RUN`; `DEPLOYMENT=NOT RUN`.
+
+## Google Maps y direccion por negocio - 2026-11-18
+
+- Se agrego `Settings.businessAddress` nullable (NVARCHAR(300)) mediante la migracion incremental `20261120000000_add_business_address`. El administrador la guarda desde Ajustes; el endpoint publico del tenant solo expone su propia direccion.
+- El paso 3 de la reserva presenta la direccion, un mapa interactivo de Google Maps Embed API en modo Place y un enlace universal de indicaciones. Sin clave configurada se conserva la direccion y el enlace, y el mapa muestra una indicacion de configuracion pendiente.
+- El workflow CI aplica la migracion despues del panel de plataforma. El workflow SWA lee `GOOGLE_MAPS_EMBED_KEY` de GitHub Secrets y la entrega al build como `NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY`; la clave del navegador sera visible para los usuarios y debe tener restricciones de HTTP referrer y de API.
+- Verificaciones locales: `npx prisma validate=PASS` (URL local ficticia); `npm run typecheck=PASS`; `npm run lint=PASS`; `npm test=PASS` (5 pasan, 4 SQL omitidas); `npm run build=PASS`; `git diff --check=PASS`.
+- `npm run test:e2e` no pudo iniciar: falta `DATABASE_URL` local de `barber_local`. La migracion aun no fue aplicada a una base local ni productiva y los E2E completos quedan pendientes de CI con SQL Server.
+- No se configuro Google Cloud, no se agrego ninguna clave, no se cambio `barber_sql`, no hubo push ni despliegue. Para habilitar el mapa se requiere configurar Maps Embed API y el secreto `GOOGLE_MAPS_EMBED_KEY` siguiendo las instrucciones de entrega.
+
+**Gates:** `GOOGLE_MAPS_IMPLEMENTATION=PASS`; `LOCAL_E2E=NOT RUN` (sin SQL local); `GOOGLE_MAPS_CREDENTIAL=BLOCKED` (requiere configuracion externa); `DATABASE_MIGRATION=NOT RUN`; `DEPLOYMENT=NOT RUN`.

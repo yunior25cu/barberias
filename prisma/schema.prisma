@@ -215,6 +215,7 @@ model Settings {
   businessId           String   @id @db.NVarChar(40)
   businessName          String   @db.NVarChar(120)
   publicPhone           String?  @db.NVarChar(32)
+  businessAddress       String?  @db.NVarChar(300)
   timezone              String   @default("America/Montevideo") @db.NVarChar(64)
   currency              String   @default("UYU") @db.NVarChar(3)
   minAdvanceMinutes     Int      @default(60)
