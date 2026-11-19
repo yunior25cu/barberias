@@ -14,6 +14,7 @@ import { handleGET as adminStaffGET, handlePOST as adminStaffPOST, handlePATCH a
 import { handleGET as adminHoursGET, handlePUT as adminHoursPUT } from "@/lib/api-handlers/admin-hours";
 import { handleGET as adminBlocksGET, handlePOST as adminBlocksPOST, handleDELETE as adminBlocksDELETE } from "@/lib/api-handlers/admin-blocks";
 import { handleGET as adminSettingsGET, handlePATCH as adminSettingsPATCH } from "@/lib/api-handlers/admin-settings";
+import { handleGET as adminReportsGET } from "@/lib/api-handlers/admin-reports";
 import { handlePOST as adminServiceImagesPOST, handlePATCH as adminServiceImagesPATCH, handleDELETE as adminServiceImagesDELETE } from "@/lib/api-handlers/admin-service-images";
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -33,6 +34,7 @@ const routes: Record<string, Partial<Record<Method, Handler>>> = {
   "admin/hours": { GET: adminHoursGET, PUT: adminHoursPUT },
   "admin/blocks": { GET: adminBlocksGET, POST: adminBlocksPOST, DELETE: adminBlocksDELETE },
   "admin/settings": { GET: adminSettingsGET, PATCH: adminSettingsPATCH },
+  "admin/reports": { GET: adminReportsGET },
 };
 
 async function dispatch(method: Method, request: Request, context: { params: Promise<{ slug: string; segments?: string[] }> }) {
