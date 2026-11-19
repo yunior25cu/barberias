@@ -31,7 +31,7 @@ async function loginAs(page: import("@playwright/test").Page, slug: string) {
   await expect(page).toHaveTitle(new RegExp(`Panel del responsable \\|`));
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex.*nofollow/);
   const username = page.getByLabel("Usuario");
-  const agenda = page.getByRole("heading", { name: /Agenda del/ });
+  const agenda = page.getByRole("heading", { name: "Agenda", exact: true });
   const loginFormVisible = await Promise.race([
     username.waitFor({ state: "visible", timeout: 10_000 }).then(() => true).catch(() => false),
     agenda.waitFor({ state: "visible", timeout: 10_000 }).then(() => false).catch(() => null),
@@ -51,7 +51,7 @@ async function loginAs(page: import("@playwright/test").Page, slug: string) {
   const response = await loginResponse;
   const result = await response.json();
   expect(response.status(), `Admin login for ${slug} failed: ${result.error ?? "unknown error"}`).toBe(200);
-  await expect(page.getByRole("heading", { name: /Agenda del/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Agenda", exact: true })).toBeVisible();
 }
 test("reserva completa desde viewport móvil sin crear una cuenta",async({page})=>{
   await page.goto("/al-corte/reservar");await page.context().grantPermissions(["clipboard-read","clipboard-write"]);await expect(page).toHaveTitle("Al Corte – Reservá tu hora");await expect(page.locator('meta[name="description"]')).toHaveAttribute("content","Elegí tu servicio y reservá tu hora en pocos pasos.");await expect(page.locator('meta[property="og:description"]')).toHaveAttribute("content","Elegí tu servicio y reservá tu hora en pocos pasos.");await expect(page.getByRole("heading",{name:"¿Qué te gustaría hacerte?"})).toBeVisible();

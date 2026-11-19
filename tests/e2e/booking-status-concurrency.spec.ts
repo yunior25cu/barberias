@@ -6,7 +6,7 @@ test("la primera acción HTTP que cierra una reserva prevalece ante una carrera 
   await page.getByLabel("Usuario").fill("e2e-owner");
   await page.getByLabel("Contraseña").fill("E2E-only-password-123!");
   await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page.getByRole("heading", { name: /Agenda del/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Agenda", exact: true })).toBeVisible();
 
   const day = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Montevideo", year: "numeric", month: "2-digit", day: "2-digit",
