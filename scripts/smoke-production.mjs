@@ -10,6 +10,18 @@ const checks = [
     validate: body => Array.isArray(body?.services),
     label: "public service catalog",
   },
+  {
+    path: "/alcorte/reservar",
+    accept: "text/html",
+    validate: body => typeof body === "string" && body.includes("<html") && !body.includes("__next_error__"),
+    label: "business booking SSR",
+  },
+  {
+    path: "/alcorte/admin",
+    accept: "text/html",
+    validate: body => typeof body === "string" && body.includes("<html") && !body.includes("__next_error__"),
+    label: "business admin SSR",
+  },
 ];
 
 async function check(checkSpec) {
@@ -17,10 +29,12 @@ async function check(checkSpec) {
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
     const response = await fetch(`${baseUrl}${checkSpec.path}`, {
-      headers: { accept: "application/json" },
+      headers: { accept: checkSpec.accept ?? "application/json" },
       signal: controller.signal,
     });
-    const body = await response.json().catch(() => null);
+    const body = checkSpec.accept === "text/html"
+      ? await response.text().catch(() => "")
+      : await response.json().catch(() => null);
     if (!response.ok || !checkSpec.validate(body)) {
       throw new Error(`${checkSpec.label}: HTTP ${response.status}; response did not meet the health contract`);
     }
