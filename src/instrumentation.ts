@@ -1,23 +1,24 @@
-import { SpanStatusCode, trace } from "@opentelemetry/api";
 import type { Instrumentation } from "next";
 
-export async function register() {
-  if (process.env.NEXT_RUNTIME !== "nodejs" || !process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) return;
+type MonitorConnection = { instrumentationKey: string; ingestionEndpoint: string };
 
-  const { useAzureMonitor } = await import("@azure/monitor-opentelemetry");
-  const startAzureMonitor = useAzureMonitor;
-  startAzureMonitor({
-    samplingRatio: 1,
-    enableLiveMetrics: false,
-    enableStandardMetrics: false,
-    instrumentationOptions: {
-      azureSdk: { enabled: false },
-      http: { enabled: false },
-    },
-    azureMonitorExporterOptions: {
-      connectionString: process.env.APPLICATIONINSIGHTS_CONNECTION_STRING,
-    },
-  });
+function getMonitorConnection(): MonitorConnection | null {
+  const raw = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING;
+  if (!raw) return null;
+
+  const values = new Map(
+    raw.split(";").map((part) => {
+      const separator = part.indexOf("=");
+      return separator < 0
+        ? ["", ""]
+        : [part.slice(0, separator).trim().toLowerCase(), part.slice(separator + 1).trim()];
+    }),
+  );
+  const instrumentationKey = values.get("instrumentationkey");
+  const ingestionEndpoint = values.get("ingestionendpoint") ?? "https://dc.services.visualstudio.com/";
+  if (!instrumentationKey || !/^https:\/\//i.test(ingestionEndpoint)) return null;
+
+  return { instrumentationKey, ingestionEndpoint: `${ingestionEndpoint.replace(/\/+$/, "")}/` };
 }
 
 export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
@@ -26,12 +27,13 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
   const digest = typeof error === "object" && error !== null && "digest" in error
     ? String(error.digest)
     : undefined;
+  const safeError = error instanceof Error
+    ? { name: error.name, message: error.message, stack: error.stack }
+    : { name: "UnknownError", message: "Next.js request failed", stack: undefined };
+  const connection = getMonitorConnection();
 
-  if (!process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
-    const safeError = error instanceof Error
-      ? { name: error.name, message: error.message, stack: error.stack }
-      : { name: "UnknownError", message: "Next.js request failed" };
-    console.error("Next.js request failed", {
+  if (!connection) {
+    console.error("Next.js business page request failed", {
       error: safeError,
       route: context.routePath,
       routeType: context.routeType,
@@ -41,22 +43,50 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
     return;
   }
 
-  const span = trace.getTracer("alcorte-nextjs").startSpan("next.request.error", {
-    attributes: {
-      "http.route": context.routePath,
-      "http.request.method": request.method,
-      "next.router.kind": context.routerKind,
-      "next.route.type": context.routeType,
-      ...(context.renderSource ? { "next.render.source": context.renderSource } : {}),
-      ...(digest ? { "next.error.digest": digest } : {}),
+  const event = {
+    ver: 1,
+    name: "Microsoft.ApplicationInsights.Event",
+    time: new Date().toISOString(),
+    iKey: connection.instrumentationKey,
+    tags: {
+      "ai.cloud.role": "alcorte-nextjs",
+      "ai.operation.name": `${request.method} ${context.routePath}`,
     },
-  });
+    data: {
+      baseType: "EventData",
+      baseData: {
+        ver: 2,
+        name: "NextBusinessPageRenderError",
+        properties: {
+          route: context.routePath,
+          routeType: context.routeType,
+          routerKind: context.routerKind,
+          method: request.method,
+          errorName: safeError.name,
+          errorMessage: safeError.message.slice(0, 2048),
+          errorStack: safeError.stack?.slice(0, 12000) ?? "",
+          ...(context.renderSource ? { renderSource: context.renderSource } : {}),
+          ...(digest ? { digest } : {}),
+        },
+      },
+    },
+  };
 
-  if (error instanceof Error) {
-    span.recordException(error);
-  } else {
-    span.recordException({ name: "UnknownError", message: "Next.js request failed" });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+  try {
+    const response = await fetch(`${connection.ingestionEndpoint}v2/track`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(event),
+      signal: controller.signal,
+    });
+    if (!response.ok && response.status !== 206) {
+      console.error("Application Insights rejected a business page error event", { status: response.status });
+    }
+  } catch {
+    console.error("Application Insights could not receive a business page error event");
+  } finally {
+    clearTimeout(timeout);
   }
-  span.setStatus({ code: SpanStatusCode.ERROR });
-  span.end();
 };
