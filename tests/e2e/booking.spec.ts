@@ -288,3 +288,69 @@ test("public booking can be managed without a phone number", async ({ page }) =>
     await db.$disconnect();
   }
 });
+
+test("el modo dinamico ofrece el final real del turno y recalcula al cancelar", async ({ page }) => {
+  await loginAs(page, "e2e-b");
+  await page.getByRole("button", { name: "Ajustes" }).click();
+  await expect(page.getByLabel(/se ofrecen las horas/)).toHaveValue("fixed");
+  await page.getByLabel(/se ofrecen las horas/).selectOption("dynamic");
+  await page.getByLabel("Intervalo entre horas (minutos)").fill("30");
+  await page.getByRole("button", { name: "Guardar ajustes" }).click();
+  await expect(page.getByText("Ajustes guardados.")).toBeVisible();
+
+  const future = new Date(Date.now() + 12 * 86_400_000);
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Montevideo", year: "numeric", month: "2-digit", day: "2-digit" }).format(future);
+  const startsAt = (time: string) => new Date(`${day}T${time}:00-03:00`).toISOString();
+  const reserve = (serviceId: string, time: string, key: string, manageToken: string) => page.request.post("/api/e2e-b/bookings", {
+    headers: { "Idempotency-Key": key },
+    data: { serviceId, staffId: "e2e-staff-b", startsAt: startsAt(time), name: "Cliente agenda dinámica", phone: "099123456", manageToken },
+  });
+
+  const firstToken = crypto.randomUUID() + crypto.randomUUID();
+  const first = await reserve("e2e-service-b", "10:30", `dynamic-first-${crypto.randomUUID()}`, firstToken);
+  const firstBody = await first.json();
+  expect(first.status(), JSON.stringify(firstBody)).toBe(201);
+  const secondToken = crypto.randomUUID() + crypto.randomUUID();
+  const second = await reserve("e2e-service-dynamic", "11:00", `dynamic-second-${crypto.randomUUID()}`, secondToken);
+  const secondBody = await second.json();
+  expect(second.status(), JSON.stringify(secondBody)).toBe(201);
+
+  const availabilityPath = "/api/e2e-b/availability?serviceId=e2e-service-dynamic&staffId=e2e-staff-b&date=";
+  const dynamicSlotsResponse = await page.request.get(availabilityPath + day);
+  expect(dynamicSlotsResponse.status()).toBe(200);
+  const dynamicTimes = (await dynamicSlotsResponse.json()).slots.map((slot: { time: string }) => slot.time);
+  expect(dynamicTimes).toContain("11:45");
+
+  const thirdToken = crypto.randomUUID() + crypto.randomUUID();
+  const third = await reserve("e2e-service-dynamic", "12:30", `dynamic-third-${crypto.randomUUID()}`, thirdToken);
+  const thirdBody = await third.json();
+  expect(third.status(), JSON.stringify(thirdBody)).toBe(201);
+  const rescheduled = await page.request.post("/api/e2e-b/manage", {
+    data: { code: thirdBody.code, manageToken: thirdBody.manageToken, action: "reschedule", startsAt: startsAt("11:45") },
+  });
+  expect(rescheduled.status(), await rescheduled.text()).toBe(200);
+
+  const cancelledSecond = await page.request.post("/api/e2e-b/manage", {
+    data: { code: secondBody.code, manageToken: secondBody.manageToken, action: "cancel" },
+  });
+  expect(cancelledSecond.status()).toBe(200);
+  const refreshedDynamic = await (await page.request.get(availabilityPath + day)).json();
+  const refreshedTimes = refreshedDynamic.slots.map((slot: { time: string }) => slot.time);
+  expect(refreshedTimes).toContain("11:00");
+  expect(refreshedTimes).not.toContain("11:45");
+
+  for (const booking of [firstBody, thirdBody]) {
+    const cancelled = await page.request.post("/api/e2e-b/manage", {
+      data: { code: booking.code, manageToken: booking.manageToken, action: "cancel" },
+    });
+    expect(cancelled.status()).toBe(200);
+  }
+  await page.getByRole("button", { name: "Ajustes" }).click();
+  await page.getByLabel(/se ofrecen las horas/).selectOption("fixed");
+  await page.getByRole("button", { name: "Guardar ajustes" }).click();
+  await expect(page.getByText("Ajustes guardados.")).toBeVisible();
+  const fixedSlotsResponse = await page.request.get(availabilityPath + day);
+  const fixedTimes = (await fixedSlotsResponse.json()).slots.map((slot: { time: string }) => slot.time);
+  expect(fixedTimes).toContain("11:00");
+  expect(fixedTimes).not.toContain("11:45");
+});

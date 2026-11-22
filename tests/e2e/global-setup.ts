@@ -12,7 +12,7 @@ export default async function globalSetup() {
   const db = new PrismaClient();
   const initialBusinessId = "al-corte";
   const secondBusinessId = "e2e-business";
-  const allServiceIds = ["e2e-service", "e2e-service-b", "e2e-admin-service"];
+  const allServiceIds = ["e2e-service", "e2e-service-b", "e2e-service-dynamic", "e2e-admin-service"];
   const allStaffIds = ["e2e-staff", "e2e-staff-2", "e2e-staff-b", "e2e-admin-staff"];
   try {
     const stalePlatformBusinesses = await db.business.findMany({ where: { slug: { startsWith: "e2e-platform-" } }, select: { id: true } });
@@ -58,8 +58,8 @@ export default async function globalSetup() {
       create: { id: secondBusinessId, slug: "e2e-b", status: "active" },
     });
     await db.settings.upsert({
-      where: { businessId: secondBusinessId }, update: { businessName: "Negocio E2E B", businessAddress: "Av. 18 de Julio 1000, Montevideo, Uruguay" },
-      create: { businessId: secondBusinessId, businessName: "Negocio E2E B", businessAddress: "Av. 18 de Julio 1000, Montevideo, Uruguay" },
+      where: { businessId: secondBusinessId }, update: { businessName: "Negocio E2E B", businessAddress: "Av. 18 de Julio 1000, Montevideo, Uruguay", calendarMode: "fixed", slotStepMinutes: 15 },
+      create: { businessId: secondBusinessId, businessName: "Negocio E2E B", businessAddress: "Av. 18 de Julio 1000, Montevideo, Uruguay", calendarMode: "fixed", slotStepMinutes: 15 },
     });
     await db.service.create({ data: { id: "e2e-service", businessId: initialBusinessId, name: "Corte de prueba E2E", durationMinutes: 30, active: true } });
     await db.staff.create({
@@ -77,10 +77,12 @@ export default async function globalSetup() {
       id: `e2e-hours-b-${weekday}`, businessId: initialBusinessId, staffId: "e2e-staff-2", weekday, startMinute: 480, endMinute: 1200,
     })) });
     await db.service.create({ data: { id: "e2e-service-b", businessId: secondBusinessId, name: "Servicio solo B", durationMinutes: 30, active: true } });
+    await db.service.create({ data: { id: "e2e-service-dynamic", businessId: secondBusinessId, name: "Servicio dinámico 45", durationMinutes: 45, active: true } });
     await db.staff.create({
       data: { id: "e2e-staff-b", businessId: secondBusinessId, name: "Profesional solo B" },
     });
     await db.staffService.create({ data: { businessId: secondBusinessId, staffId: "e2e-staff-b", serviceId: "e2e-service-b" } });
+    await db.staffService.create({ data: { businessId: secondBusinessId, staffId: "e2e-staff-b", serviceId: "e2e-service-dynamic" } });
     await db.businessHours.createMany({ data: Array.from({ length: 7 }, (_, weekday) => ({
       id: `e2e-hours-only-b-${weekday}`, businessId: secondBusinessId, staffId: "e2e-staff-b", weekday, startMinute: 480, endMinute: 1200,
     })) });

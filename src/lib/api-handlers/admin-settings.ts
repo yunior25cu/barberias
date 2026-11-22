@@ -11,11 +11,12 @@ const schema = z.object({
   businessAddress: z.string().trim().max(300).nullable().optional(),
   timezone: z.literal("America/Montevideo").optional(), currency: z.string().regex(/^[A-Z]{3}$/).optional(),
   minAdvanceMinutes: z.number().int().min(0).max(10080).optional(), maxAdvanceDays: z.number().int().min(1).max(365).optional(),
-  slotStepMinutes: z.number().int().min(5).max(60).optional(), cancellationPolicy: z.string().max(500).optional(),
+  slotStepMinutes: z.number().int().min(5).max(60).optional(), calendarMode: z.enum(["fixed", "dynamic"]).optional(),
+  cancellationPolicy: z.string().max(500).optional(),
 });
 const projection = {
   businessName: true, publicPhone: true, businessAddress: true, timezone: true, currency: true, minAdvanceMinutes: true,
-  maxAdvanceDays: true, slotStepMinutes: true, cancellationPolicy: true,
+  maxAdvanceDays: true, slotStepMinutes: true, calendarMode: true, cancellationPolicy: true,
 } as const;
 
 export async function handleGET(_request: Request, business: BusinessContext) {

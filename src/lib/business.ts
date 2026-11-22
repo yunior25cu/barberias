@@ -7,7 +7,7 @@ export type BusinessContext = {
   status: "active";
   settings: {
     businessName: string; publicPhone: string | null; businessAddress: string | null; timezone: string; currency: string;
-    minAdvanceMinutes: number; maxAdvanceDays: number; slotStepMinutes: number; cancellationPolicy: string;
+    minAdvanceMinutes: number; maxAdvanceDays: number; slotStepMinutes: number; calendarMode: "fixed" | "dynamic"; cancellationPolicy: string;
   } | null;
 };
 
@@ -21,7 +21,7 @@ export async function resolveBusiness(slug: string): Promise<BusinessContext | n
       id: true, slug: true, status: true,
       settings: { select: {
         businessName: true, publicPhone: true, businessAddress: true, timezone: true, currency: true,
-        minAdvanceMinutes: true, maxAdvanceDays: true, slotStepMinutes: true, cancellationPolicy: true,
+        minAdvanceMinutes: true, maxAdvanceDays: true, slotStepMinutes: true, calendarMode: true, cancellationPolicy: true,
       } },
     },
   }) as Promise<BusinessContext | null>;

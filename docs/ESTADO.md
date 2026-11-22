@@ -248,3 +248,15 @@ Esta entrada supersede los estados de planificación antiguos de este documento 
 - La cadena integrada de conexión se usó solo en el proceso de migración y no se guardó en archivos del repositorio.
 
 **Resultado:** `BARBER_LOCAL_MIGRATIONS=PASS`; `BARBER_SQL=NOT MODIFIED`.
+
+## Dos políticas de disponibilidad por negocio — 2026-11-22
+
+- Se añadió `Settings.calendarMode` con valores `fixed` y `dynamic`. La migración SQL Server `20261122000000_add_calendar_mode` agrega la columna con valor predeterminado `fixed`, preservando el comportamiento de los negocios existentes.
+- En modo fijo se conservan los inicios cada `slotStepMinutes`, anclados a la apertura de cada jornada. En modo dinámico, además, se ofrecen finales locales de reservas y bloqueos activos, siempre que el nuevo servicio quepa dentro de la jornada y no se superponga. Cancelar desactiva la ocupación; la próxima consulta recalcula y deja de usar ese final como candidato.
+- Reserva pública y reprogramación pública verifican la misma regla bajo el bloqueo transaccional de agenda. La comprobación de solapamientos y la duración real del servicio se mantienen en el servidor.
+- Verificación local de código: `npx prisma validate=PASS`; `npm run lint=PASS`; `npm run typecheck=PASS`; `npm test=PASS` (11 pasan, 4 omitidas); `npm run build=PASS`.
+- La migración local no quedó aplicada. Se inspeccionó `barber_local` y se confirmó que el `DATABASE_URL` de runtime usa `alcorte_local_app`, sin permiso `ALTER` en `dbo.Settings`. Los intentos fallidos se marcaron como revertidos y se verificó que `calendarMode` no existe en esa base. No se modificaron datos ni permisos.
+- `npm run test:e2e=NOT RUN`: requiere la nueva columna local. Los E2E que migran la base SQL efímera de CI están añadidos, incluyendo 10:30 (30 min), 11:00 (45 min), disponibilidad 11:45, reprogramación dinámica, cancelación y modo fijo.
+- No se hizo commit, push, migración productiva ni despliegue.
+
+**Gates:** `FIXED_MODE=IMPLEMENTED`; `DYNAMIC_MODE=IMPLEMENTED`; `LOCAL_E2E=BLOCKED_BY_LOCAL_MIGRATION_PERMISSION`; `CI_E2E=NOT RUN`; `PRODUCTION=NOT DEPLOYED`.

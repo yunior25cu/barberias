@@ -4,6 +4,7 @@ import { tokenHash } from "@/lib/security";
 import { error, json } from "@/lib/http";
 import { limitedForBusiness } from "@/lib/rate-limit";
 import { localDateKey, localMinute } from "@/lib/availability";
+import { isOnFixedGrid } from "@/lib/slot-policy";
 import { withInitialBusiness } from "@/lib/business-route";
 import type { BusinessContext } from "@/lib/business";
 
@@ -44,17 +45,28 @@ export async function handlePOST(request: Request, business: BusinessContext) {
       const minute = localMinute(start);
       const settings = business.settings;
       if (start.getTime() < Date.now() + (settings?.minAdvanceMinutes ?? 60) * 60_000
-        || start.getTime() > Date.now() + (settings?.maxAdvanceDays ?? 60) * 86_400_000
-        || minute % (settings?.slotStepMinutes ?? 15) !== 0) return { unavailable: true };
+        || start.getTime() > Date.now() + (settings?.maxAdvanceDays ?? 60) * 86_400_000) return { unavailable: true };
       const staff = await tx.staff.findMany({
         where: {
           businessId: business.id, active: true,
           services: { some: { businessId: business.id, serviceId: service.id } },
           hours: { some: { businessId: business.id, weekday, startMinute: { lte: minute }, endMinute: { gte: minute + service.durationMinutes } } },
         },
-        orderBy: { name: "asc" }, select: { id: true },
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          hours: { where: { businessId: business.id, weekday, startMinute: { lte: minute }, endMinute: { gte: minute + service.durationMinutes } }, select: { startMinute: true } },
+        },
       });
       for (const person of staff) {
+        const onGrid = person.hours.some(hours => isOnFixedGrid(minute, hours.startMinute, settings?.slotStepMinutes ?? 15));
+        if (!onGrid) {
+          if (settings?.calendarMode !== "dynamic") continue;
+          const followsOccupancy = await tx.occupancy.findFirst({
+            where: { staffId: person.id, active: true, endsAt: start }, select: { id: true },
+          });
+          if (!followsOccupancy) continue;
+        }
         const conflict = await tx.occupancy.findFirst({
           where: { businessId: business.id, staffId: person.id, active: true, bookingId: { not: booking.id }, startsAt: { lt: end }, endsAt: { gt: start } },
           select: { id: true },

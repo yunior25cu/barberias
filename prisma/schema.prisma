@@ -222,6 +222,7 @@ model Settings {
   minAdvanceMinutes     Int      @default(60)
   maxAdvanceDays        Int      @default(60)
   slotStepMinutes       Int      @default(15)
+  calendarMode          String   @default("fixed") @db.NVarChar(16)
   cancellationPolicy    String   @default("Cancelá o cambiá tu hora con anticipación contactando al local.") @db.NVarChar(500)
   business              Business @relation(fields: [businessId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }

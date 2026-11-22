@@ -2,6 +2,7 @@ import { randomInt, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { tenantRepository } from "@/lib/tenant-repository";
 import { localDateKey, localMinute } from "@/lib/availability";
+import { isOnFixedGrid } from "@/lib/slot-policy";
 import { error, json } from "@/lib/http";
 import { phone, tokenHash } from "@/lib/security";
 import { limitedForBusiness } from "@/lib/rate-limit";
@@ -49,17 +50,30 @@ export async function handlePOST(request: Request, business: BusinessContext) {
       const minute = localMinute(start);
       const settings = business.settings;
       if (start.getTime() < Date.now() + (settings?.minAdvanceMinutes ?? 60) * 60_000
-        || start.getTime() > Date.now() + (settings?.maxAdvanceDays ?? 60) * 86_400_000
-        || minute % (settings?.slotStepMinutes ?? 15) !== 0) throw new Error("INVALID_SLOT");
+        || start.getTime() > Date.now() + (settings?.maxAdvanceDays ?? 60) * 86_400_000) throw new Error("INVALID_SLOT");
       const staff = await tx.staff.findMany({
         where: {
           businessId: business.id, active: true, ...(parsed.data.staffId ? { id: parsed.data.staffId } : {}),
           services: { some: { businessId: business.id, serviceId: duration.id } },
           hours: { some: { businessId: business.id, weekday, startMinute: { lte: minute }, endMinute: { gte: minute + duration.durationMinutes } } },
         },
-        orderBy: { name: "asc" }, select: { id: true },
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          hours: { where: { businessId: business.id, weekday, startMinute: { lte: minute }, endMinute: { gte: minute + duration.durationMinutes } }, select: { startMinute: true } },
+        },
       });
+      let candidateMatchedPolicy = false;
       for (const person of staff) {
+        const onGrid = person.hours.some(hours => isOnFixedGrid(minute, hours.startMinute, settings?.slotStepMinutes ?? 15));
+        if (!onGrid) {
+          if (settings?.calendarMode !== "dynamic") continue;
+          const followsOccupancy = await tx.occupancy.findFirst({
+            where: { staffId: person.id, active: true, endsAt: start }, select: { id: true },
+          });
+          if (!followsOccupancy) continue;
+        }
+        candidateMatchedPolicy = true;
         const conflict = await tx.occupancy.findFirst({
           where: { businessId: business.id, staffId: person.id, active: true, startsAt: { lt: end }, endsAt: { gt: start } },
           select: { id: true },
@@ -76,6 +90,7 @@ export async function handlePOST(request: Request, business: BusinessContext) {
         await tx.occupancy.create({ data: { businessId: business.id, staffId: person.id, bookingId: id, startsAt: start, endsAt: end } });
         return row;
       }
+      if (!candidateMatchedPolicy) throw new Error("INVALID_SLOT");
       throw new Error("SLOT_TAKEN");
     }, { isolationLevel: "ReadCommitted" });
     return json({ code: booking.code, manageToken: manage, startsAt: booking.startsAt.toISOString(), status: booking.status });

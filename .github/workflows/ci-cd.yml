@@ -98,6 +98,10 @@ jobs:
         env:
           ALCORTE_MIGRATION_TARGET: 20261121000000_add_service_images
         run: npm run db:release
+      - name: Apply incremental calendar mode migration
+        env:
+          ALCORTE_MIGRATION_TARGET: 20261122000000_add_calendar_mode
+        run: npm run db:release
       - name: Prepare isolated Azure Blob emulator
         run: node scripts/setup-ci-blob.mjs
       - name: Verify full Prisma migration history
