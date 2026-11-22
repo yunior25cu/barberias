@@ -249,7 +249,7 @@ test("public booking can be managed without a phone number", async ({ page }) =>
   const db = new PrismaClient();
   try {
     await loginAs(page, "e2e-b");
-    await page.getByRole("button", { name: "Ajustes" }).click();
+    await page.getByRole("button", { name: "Ajustes", exact: true }).click();
   await expect(page.getByLabel("Dirección del local")).toHaveValue("Av. 18 de Julio 1000, Montevideo, Uruguay");
     await page.getByLabel("Dirección del local").fill("Bulevar Artigas 1234, Montevideo, Uruguay");
     await page.getByRole("button", { name: "Guardar ajustes" }).click();
@@ -292,7 +292,7 @@ test("public booking can be managed without a phone number", async ({ page }) =>
 
 test("el modo dinamico ofrece el final real del turno y recalcula al cancelar", async ({ page }) => {
   await loginAs(page, "e2e-b");
-  await page.getByRole("button", { name: "Ajustes" }).click();
+  await page.getByRole("button", { name: "Ajustes", exact: true }).click();
   await expect(page.getByLabel(/Tipo de calendario de reservas/)).toHaveValue("fixed");
   await page.getByLabel(/Tipo de calendario de reservas/).selectOption("dynamic");
   await page.getByLabel("Intervalo entre horas (minutos)").fill("30");
@@ -346,7 +346,7 @@ test("el modo dinamico ofrece el final real del turno y recalcula al cancelar", 
     });
     expect(cancelled.status()).toBe(200);
   }
-  await page.getByRole("button", { name: "Ajustes" }).click();
+  await page.getByRole("button", { name: "Ajustes", exact: true }).click();
   await page.getByLabel(/Tipo de calendario de reservas/).selectOption("fixed");
   await page.getByRole("button", { name: "Guardar ajustes" }).click();
   await expect(page.getByText("Ajustes guardados.")).toBeVisible();
