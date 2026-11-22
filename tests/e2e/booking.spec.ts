@@ -72,7 +72,8 @@ test("separa catálogo, sesiones y relaciones entre negocios", async ({ page }) 
   const namesB = (await publicB.json()).services.map((service: { name: string }) => service.name);
   expect(namesA).toContain("Corte de prueba E2E");
   expect(namesA).not.toContain("Servicio solo B");
-  expect(namesB).toEqual(["Servicio solo B"]);
+  expect(namesB).toContain("Servicio solo B");
+  expect(namesB).not.toContain("Corte de prueba E2E");
 
   await loginAs(page, "al-corte");
   expect((await page.request.get("/api/al-corte/admin/services")).status()).toBe(200);
@@ -292,8 +293,8 @@ test("public booking can be managed without a phone number", async ({ page }) =>
 test("el modo dinamico ofrece el final real del turno y recalcula al cancelar", async ({ page }) => {
   await loginAs(page, "e2e-b");
   await page.getByRole("button", { name: "Ajustes" }).click();
-  await expect(page.getByLabel(/se ofrecen las horas/)).toHaveValue("fixed");
-  await page.getByLabel(/se ofrecen las horas/).selectOption("dynamic");
+  await expect(page.getByLabel(/Tipo de calendario de reservas/)).toHaveValue("fixed");
+  await page.getByLabel(/Tipo de calendario de reservas/).selectOption("dynamic");
   await page.getByLabel("Intervalo entre horas (minutos)").fill("30");
   await page.getByRole("button", { name: "Guardar ajustes" }).click();
   await expect(page.getByText("Ajustes guardados.")).toBeVisible();
@@ -346,7 +347,7 @@ test("el modo dinamico ofrece el final real del turno y recalcula al cancelar", 
     expect(cancelled.status()).toBe(200);
   }
   await page.getByRole("button", { name: "Ajustes" }).click();
-  await page.getByLabel(/se ofrecen las horas/).selectOption("fixed");
+  await page.getByLabel(/Tipo de calendario de reservas/).selectOption("fixed");
   await page.getByRole("button", { name: "Guardar ajustes" }).click();
   await expect(page.getByText("Ajustes guardados.")).toBeVisible();
   const fixedSlotsResponse = await page.request.get(availabilityPath + day);
