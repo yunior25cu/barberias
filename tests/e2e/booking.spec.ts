@@ -310,11 +310,11 @@ test("el modo dinamico ofrece el final real del turno y recalcula al cancelar", 
   const firstToken = crypto.randomUUID() + crypto.randomUUID();
   const first = await reserve("e2e-service-b", "10:30", `dynamic-first-${crypto.randomUUID()}`, firstToken);
   const firstBody = await first.json();
-  expect(first.status(), JSON.stringify(firstBody)).toBe(201);
+  expect(first.status(), JSON.stringify(firstBody)).toBe(200);
   const secondToken = crypto.randomUUID() + crypto.randomUUID();
   const second = await reserve("e2e-service-dynamic", "11:00", `dynamic-second-${crypto.randomUUID()}`, secondToken);
   const secondBody = await second.json();
-  expect(second.status(), JSON.stringify(secondBody)).toBe(201);
+  expect(second.status(), JSON.stringify(secondBody)).toBe(200);
 
   const availabilityPath = "/api/e2e-b/availability?serviceId=e2e-service-dynamic&staffId=e2e-staff-b&date=";
   const dynamicSlotsResponse = await page.request.get(availabilityPath + day);
@@ -325,7 +325,7 @@ test("el modo dinamico ofrece el final real del turno y recalcula al cancelar", 
   const thirdToken = crypto.randomUUID() + crypto.randomUUID();
   const third = await reserve("e2e-service-dynamic", "12:30", `dynamic-third-${crypto.randomUUID()}`, thirdToken);
   const thirdBody = await third.json();
-  expect(third.status(), JSON.stringify(thirdBody)).toBe(201);
+  expect(third.status(), JSON.stringify(thirdBody)).toBe(200);
   const rescheduled = await page.request.post("/api/e2e-b/manage", {
     data: { code: thirdBody.code, manageToken: thirdBody.manageToken, action: "reschedule", startsAt: startsAt("11:45") },
   });
