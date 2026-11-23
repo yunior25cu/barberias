@@ -260,3 +260,15 @@ Esta entrada supersede los estados de planificación antiguos de este documento 
 - No se hizo commit, push, migración productiva ni despliegue.
 
 **Gates:** `FIXED_MODE=IMPLEMENTED`; `DYNAMIC_MODE=IMPLEMENTED`; `LOCAL_E2E=BLOCKED_BY_LOCAL_MIGRATION_PERMISSION`; `CI_E2E=NOT RUN`; `PRODUCTION=NOT DEPLOYED`.
+
+## Disponibilidad frente a auto-pausa de Azure SQL Free Tier — 2026-11-23
+
+- Forense de producción: cuatro eventos `NextBusinessPageRenderError` para `GET /[slug]/admin` con el digest reportado `3909498040`, en dos ráfagas (17:11 y 17:55 UTC). La pila en los cuatro es `tarn/PendingOperation.js`; el mensaje fue `operation timed out for an unknown reason`.
+- Correlación de Azure: `barber_sql` inició reanudación a las 17:11:15 y 17:54:41 UTC; las finalizó a las 17:11:45 y 17:55:41. Azure Resource Health registró dos indisponibilidades iniciadas por plataforma (17:14–17:16 y 17:58–18:00, granularidad de dos minutos). El mismo período tiene 15 conexiones fallidas, 14 exitosas y cero fallos atribuidos a firewall o error de usuario. El contador de uso gratuito aún mostraba 14,088 unidades al final de la ventana; no era agotamiento del límite mensual.
+- Causa raíz demostrada: la base Free Tier se pausa por inactividad y el runtime no tolera suficientemente la ventana de reanudación. Azure documenta que Free Tier pausa después de 15 minutos y que el primer intento de conexión al reanudar puede fallar. El pool del adaptador `mssql` conservaba 30 segundos para adquirir/crear conexiones, menos que la ventana de reanudación observada.
+- Cambio local en `src/lib/db.ts` (rama `barber`): tiempo acotado de adquisición/creación de 90 segundos, reintento de creación cada 1 segundo y `propagateCreateError=false`, para repetir solo la apertura de conexión; nunca se reejecuta una consulta ni una mutación. Se preservan el plan Free, `AutoPause`, y los timeouts de consulta actuales. No se modificó Azure.
+- Verificación local real: `npm run lint=PASS`; `npm run typecheck=PASS`; `npm test=PASS` (11 pasan, 4 omitidos por dependencias de SQL); `npm run build=PASS`; `git diff --check=PASS`.
+- E2E local no ejecutado: `barber_local` no tiene aplicada la migración `calendarMode` requerida por la suite actual; no se modificó la base local. El E2E y la validación del despertar deberán correr en CI con SQL efímero; no se pausó producción para simularlo.
+- Smoke previo a este cambio: cinco rondas secuenciales de `GET /api/health`, `/alcorte/admin` y `/alcorte/reservar` dieron HTTP 200, con `database=ok`. Esto acredita recuperación actual, no prueba el nuevo código ni el arranque en frío.
+
+**Gates:** `ROOT_CAUSE=AZURE_SQL_FREE_AUTOPAUSE`; `LOCAL_QUALITY=PASS`; `CI_E2E=NOT RUN`; `PRODUCTION_FIX=NOT DEPLOYED`; `PRODUCTION=NOT PASS`.

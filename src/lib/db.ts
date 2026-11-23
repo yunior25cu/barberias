@@ -20,7 +20,16 @@ function createPrismaClient(): PrismaClient {
     options: { encrypt: true, trustServerCertificate: false },
     connectionTimeout: 60000,
     requestTimeout: 60000,
-    pool: { max: 5, min: 0, idleTimeoutMillis: 30000 },
+    // Free Azure SQL may be paused; allow bounded connection retries while it resumes.
+    pool: {
+      max: 5,
+      min: 0,
+      idleTimeoutMillis: 30000,
+      acquireTimeoutMillis: 90000,
+      createTimeoutMillis: 90000,
+      createRetryIntervalMillis: 1000,
+      propagateCreateError: false,
+    },
   });
   return new PrismaClient({ adapter });
 }
