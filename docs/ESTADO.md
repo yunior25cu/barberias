@@ -238,7 +238,7 @@ Esta entrada supersede los estados de planificación antiguos de este documento 
 - `npm run test:e2e=NOT RUN`: el entorno local no tiene `DATABASE_URL` para `barber_local`; el setup exige esa base y Azurite local. Los E2E de imágenes están incorporados para CI, aún no ejecutados localmente.
 - Azure no fue modificado por esta implementación. El propietario informó que ya configuró la cuenta Blob, CORS y settings de SWA; esa configuración externa no fue verificada desde el entorno. No se hizo push ni despliegue durante la implementación.
 
-**Gates de implementación:** `IMAGE_UPLOAD_IMPLEMENTATION=PASS`; `LOCAL_E2E=NOT RUN`; `CI_E2E=NOT RUN`; `DATABASE_MIGRATION_LOCAL=PASS`; `AZURE_BLOB_CONFIGURATION=OWNER_REPORTED_CONFIGURED, NOT VERIFIED`; `DEPLOYMENT=NOT RUN`.
+**Gates de implementación:** `IMAGE_UPLOAD_IMPLEMENTATION=PASS`; `LOCAL_E2E=NOT RUN`; `CI_E2E=PASS (run 45238991353)`; `DATABASE_MIGRATION_LOCAL=PASS`; `AZURE_BLOB_CONFIGURATION=OWNER_REPORTED_CONFIGURED, NOT VERIFIED`; `DEPLOYMENT=NOT RUN`.
 
 ### Migración local aplicada - 2026-11-18
 
@@ -259,7 +259,7 @@ Esta entrada supersede los estados de planificación antiguos de este documento 
 - `npm run test:e2e=NOT RUN`: requiere la nueva columna local. Los E2E que migran la base SQL efímera de CI están añadidos, incluyendo 10:30 (30 min), 11:00 (45 min), disponibilidad 11:45, reprogramación dinámica, cancelación y modo fijo.
 - No se hizo commit, push, migración productiva ni despliegue.
 
-**Gates:** `FIXED_MODE=IMPLEMENTED`; `DYNAMIC_MODE=IMPLEMENTED`; `LOCAL_E2E=BLOCKED_BY_LOCAL_MIGRATION_PERMISSION`; `CI_E2E=NOT RUN`; `PRODUCTION=NOT DEPLOYED`.
+**Gates:** `FIXED_MODE=IMPLEMENTED`; `DYNAMIC_MODE=IMPLEMENTED`; `LOCAL_E2E=BLOCKED_BY_LOCAL_MIGRATION_PERMISSION`; `CI_E2E=PASS (run 45238991353)`; `PRODUCTION=NOT DEPLOYED`.
 
 ## Disponibilidad frente a auto-pausa de Azure SQL Free Tier — 2026-11-23
 
@@ -268,7 +268,7 @@ Esta entrada supersede los estados de planificación antiguos de este documento 
 - Causa raíz demostrada: la base Free Tier se pausa por inactividad y el runtime no tolera suficientemente la ventana de reanudación. Azure documenta que Free Tier pausa después de 15 minutos y que el primer intento de conexión al reanudar puede fallar. El pool del adaptador `mssql` conservaba 30 segundos para adquirir/crear conexiones, menos que la ventana de reanudación observada.
 - Cambio local en `src/lib/db.ts` (rama `barber`): tiempo acotado de adquisición/creación de 90 segundos, reintento de creación cada 1 segundo y `propagateCreateError=false`, para repetir solo la apertura de conexión; nunca se reejecuta una consulta ni una mutación. Se preservan el plan Free, `AutoPause`, y los timeouts de consulta actuales. No se modificó Azure.
 - Verificación local real: `npm run lint=PASS`; `npm run typecheck=PASS`; `npm test=PASS` (11 pasan, 4 omitidos por dependencias de SQL); `npm run build=PASS`; `git diff --check=PASS`.
-- E2E local no ejecutado: `barber_local` no tiene aplicada la migración `calendarMode` requerida por la suite actual; no se modificó la base local. El E2E y la validación del despertar deberán correr en CI con SQL efímero; no se pausó producción para simularlo.
+- E2E local no ejecutado: `barber_local` no tiene aplicada la migración `calendarMode`; no se modificó la base local. CI `45238991353` para `cb8ae18` pasó la suite E2E HTTP/funcional, concurrencia SQL, seguridad y build con SQL efímero. No se pausó producción para simular el despertar; su validación quedará observada con tráfico normal.
 - Smoke previo a este cambio: cinco rondas secuenciales de `GET /api/health`, `/alcorte/admin` y `/alcorte/reservar` dieron HTTP 200, con `database=ok`. Esto acredita recuperación actual, no prueba el nuevo código ni el arranque en frío.
 
-**Gates:** `ROOT_CAUSE=AZURE_SQL_FREE_AUTOPAUSE`; `LOCAL_QUALITY=PASS`; `CI_E2E=NOT RUN`; `PRODUCTION_FIX=NOT DEPLOYED`; `PRODUCTION=NOT PASS`.
+**Gates:** `ROOT_CAUSE=AZURE_SQL_FREE_AUTOPAUSE`; `LOCAL_QUALITY=PASS`; `CI_E2E=PASS (run 45238991353)`; `PRODUCTION_FIX=NOT DEPLOYED`; `PRODUCTION=NOT PASS`.
