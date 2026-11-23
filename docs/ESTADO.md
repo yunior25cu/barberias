@@ -273,4 +273,14 @@ Esta entrada supersede los estados de planificación antiguos de este documento 
 - Smoke manual posterior: 5 rondas de solo lectura; `/api/health` fue HTTP 200 con `status=ok,database=ok`; `/alcorte/admin` y `/alcorte/reservar` fueron HTTP 200 en todas. Latencias observadas: 223–1,205 ms para health y 250–586 ms para las páginas. No se creó ninguna reserva.
 - App Insights no registró nuevos `NextBusinessPageRenderError` para la ruta/digest desde 18:45 UTC hasta 18:56 UTC. La instrumentación estándar de requests/dependencias no está habilitada, por lo que esta consulta solo acredita los eventos personalizados existentes. CI ejecutó login/gestión admin E2E con datos sintéticos; no se usaron credenciales reales de producción.
 
-**Gates:** `ROOT_CAUSE=CONFIRMED`; `LOCAL_QUALITY=PASS`; `CI_E2E=PASS (run 45240757918)`; `PRODUCTION_DEPLOYMENT=PASS (run 45241947726)`; `PRODUCTION_HEALTH_AND_ROUTES=PASS`; `REAL_ADMIN_LOGIN=NOT TESTED`; `PRODUCTION_FIX=PASS`.
+**Gates:** `ROOT_CAUSE=CONFIRMED`; `LOCAL_QUALITY=PASS`; `CI_E2E=PASS (run 45240757918)`; `PRODUCTION_DEPLOYMENT=PASS (run 45241947726)`; `PRODUCTION_HEALTH_AND_ROUTES=PASS`; `REAL_ADMIN_LOGIN=NOT TESTED`; `PRODUCTION_FIX=REOPENED_AFTER_COLD_REQUEST`.
+## Seguimiento de handshake frío de Azure SQL — 2026-11-23
+
+- Tras la primera promoción, un request de solo lectura a /api/health devolvió HTTP 500; requests posteriores a health, /alcorte/admin y /alcorte/reservar dieron 200. La primera falla no quedó en App Insights porque onRequestError filtraba todas las rutas /api/*.
+- Correlación de Azure SQL: auto-pausa a las 19:25:46 UTC; auto-reanudación iniciada a las 20:08:04 y completada a las 20:08:47, con duración reportada de 43.2 segundos. Estado Free/AutoPause se mantuvo.
+- Inspección del adaptador instalado confirmó la limitación: PrismaMssql.connect() llama ConnectionPool.connect() antes de construir el pool tarn; por eso aumentar acquireTimeoutMillis no cubre el primer handshake tras la pausa.
+- Seguimiento local en src/lib/db.ts: reintento acotado del handshake del adaptador ante códigos transitorios SQL, máximo 9 aperturas y backoff de 1, 2, 4 y hasta 8 segundos. No reintenta consultas ni mutaciones. src/lib/instrumentation.ts registra errores de Route Handlers con ruta, método, clase y código seguro; excluye mensaje, stack, datos del cliente y query string.
+- Pruebas unitarias nuevas: éxito luego de 40613, sin reintento de error de login y límite máximo de intentos. Verificación local: lint/typecheck/build PASS; 14 pruebas pasan y 4 se omiten por SQL local.
+- Este seguimiento aún no se había enviado ni desplegado al cerrar la verificación local inicial. No se modificó la configuración Azure ni la base.
+
+Gates provisionales: COLD_START_ROOT_CAUSE=CONFIRMED; FOLLOWUP_LOCAL=PASS; FOLLOWUP_CI=NOT RUN; FOLLOWUP_PRODUCTION=NOT DEPLOYED.

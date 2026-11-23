@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaMssql } from "@prisma/adapter-mssql";
 import { env } from "@/lib/env";
+import { retryAzureSqlConnection } from "@/lib/sql-connection-retry";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
@@ -12,7 +13,7 @@ function createPrismaClient(): PrismaClient {
         type: "azure-active-directory-service-principal-secret" as const,
         options: { clientId: env.AZURE_SQL_CLIENT_ID!, clientSecret: env.AZURE_SQL_CLIENT_SECRET!, tenantId: env.AZURE_SQL_TENANT_ID! },
       };
-  const adapter = new PrismaMssql({
+  const adapterFactory = new PrismaMssql({
     server: env.AZURE_SQL_SERVER!,
     port: 1433,
     database: env.AZURE_SQL_DATABASE!,
@@ -20,7 +21,7 @@ function createPrismaClient(): PrismaClient {
     options: { encrypt: true, trustServerCertificate: false },
     connectionTimeout: 60000,
     requestTimeout: 60000,
-    // Free Azure SQL may be paused; allow bounded connection retries while it resumes.
+    // Free Azure SQL may pause; bound both adapter handshakes and pool acquisition retries.
     pool: {
       max: 5,
       min: 0,
@@ -31,6 +32,11 @@ function createPrismaClient(): PrismaClient {
       propagateCreateError: false,
     },
   });
+  const adapter = {
+    provider: "sqlserver" as const,
+    adapterName: adapterFactory.adapterName,
+    connect: () => retryAzureSqlConnection(() => adapterFactory.connect()),
+  };
   return new PrismaClient({ adapter });
 }
 

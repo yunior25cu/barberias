@@ -18,28 +18,50 @@ function getMonitorConnection(): MonitorConnection | null {
   const ingestionEndpoint = values.get("ingestionendpoint") ?? "https://dc.services.visualstudio.com/";
   if (!instrumentationKey || !/^https:\/\//i.test(ingestionEndpoint)) return null;
 
-  return { instrumentationKey, ingestionEndpoint: `${ingestionEndpoint.replace(/\/+$/, "")}/` };
+  return { instrumentationKey, ingestionEndpoint: ingestionEndpoint.replace(/\/+$/, "") + "/" };
+}
+
+function getSafeErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("code" in error)) return undefined;
+  const code = error.code;
+  if (typeof code === "number") return String(code);
+  return typeof code === "string" && /^[A-Za-z0-9_-]{1,32}$/.test(code) ? code : undefined;
 }
 
 export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
-  if (!context.routePath.startsWith("/[slug]/")) return;
+  const businessRoute = context.routePath.startsWith("/[slug]/");
+  const apiRoute = context.routePath.startsWith("/api/");
+  if (!businessRoute && !apiRoute) return;
 
   const digest = typeof error === "object" && error !== null && "digest" in error
     ? String(error.digest)
     : undefined;
+  const errorName = error instanceof Error ? error.name : "UnknownError";
+  const errorCode = getSafeErrorCode(error);
   const safeError = error instanceof Error
-    ? { name: error.name, message: error.message, stack: error.stack }
-    : { name: "UnknownError", message: "Next.js request failed", stack: undefined };
+    ? { name: errorName, message: error.message, stack: error.stack }
+    : { name: errorName, message: "Next.js request failed", stack: undefined };
   const connection = getMonitorConnection();
 
   if (!connection) {
-    console.error("Next.js business page request failed", {
-      error: safeError,
-      route: context.routePath,
-      routeType: context.routeType,
-      method: request.method,
-      ...(digest ? { digest } : {}),
-    });
+    if (apiRoute) {
+      console.error("Next.js API route request failed", {
+        route: context.routePath,
+        routeType: context.routeType,
+        method: request.method,
+        errorName,
+        ...(errorCode ? { errorCode } : {}),
+        ...(digest ? { digest } : {}),
+      });
+    } else {
+      console.error("Next.js business page request failed", {
+        error: safeError,
+        route: context.routePath,
+        routeType: context.routeType,
+        method: request.method,
+        ...(digest ? { digest } : {}),
+      });
+    }
     return;
   }
 
@@ -50,22 +72,25 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
     iKey: connection.instrumentationKey,
     tags: {
       "ai.cloud.role": "alcorte-nextjs",
-      "ai.operation.name": `${request.method} ${context.routePath}`,
+      "ai.operation.name": request.method + " " + context.routePath,
     },
     data: {
       baseType: "EventData",
       baseData: {
         ver: 2,
-        name: "NextBusinessPageRenderError",
+        name: apiRoute ? "NextApiRouteError" : "NextBusinessPageRenderError",
         properties: {
           route: context.routePath,
           routeType: context.routeType,
           routerKind: context.routerKind,
           method: request.method,
-          errorName: safeError.name,
-          errorMessage: safeError.message.slice(0, 2048),
-          errorStack: safeError.stack?.slice(0, 12000) ?? "",
+          errorName,
+          ...(apiRoute ? {} : {
+            errorMessage: safeError.message.slice(0, 2048),
+            errorStack: safeError.stack?.slice(0, 12000) ?? "",
+          }),
           ...(context.renderSource ? { renderSource: context.renderSource } : {}),
+          ...(errorCode ? { errorCode } : {}),
           ...(digest ? { digest } : {}),
         },
       },
@@ -75,17 +100,17 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
-    const response = await fetch(`${connection.ingestionEndpoint}v2/track`, {
+    const response = await fetch(connection.ingestionEndpoint + "v2/track", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(event),
       signal: controller.signal,
     });
     if (!response.ok && response.status !== 206) {
-      console.error("Application Insights rejected a business page error event", { status: response.status });
+      console.error("Application Insights rejected a server error event", { status: response.status });
     }
   } catch {
-    console.error("Application Insights could not receive a business page error event");
+    console.error("Application Insights could not receive a server error event");
   } finally {
     clearTimeout(timeout);
   }
