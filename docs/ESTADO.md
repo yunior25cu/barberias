@@ -238,7 +238,7 @@ Esta entrada supersede los estados de planificación antiguos de este documento 
 - `npm run test:e2e=NOT RUN`: el entorno local no tiene `DATABASE_URL` para `barber_local`; el setup exige esa base y Azurite local. Los E2E de imágenes están incorporados para CI, aún no ejecutados localmente.
 - Azure no fue modificado por esta implementación. El propietario informó que ya configuró la cuenta Blob, CORS y settings de SWA; esa configuración externa no fue verificada desde el entorno. No se hizo push ni despliegue durante la implementación.
 
-**Gates de implementación:** `IMAGE_UPLOAD_IMPLEMENTATION=PASS`; `LOCAL_E2E=NOT RUN`; `CI_E2E=PASS (run 45238991353)`; `DATABASE_MIGRATION_LOCAL=PASS`; `AZURE_BLOB_CONFIGURATION=OWNER_REPORTED_CONFIGURED, NOT VERIFIED`; `DEPLOYMENT=NOT RUN`.
+**Gates de implementación:** `IMAGE_UPLOAD_IMPLEMENTATION=PASS`; `LOCAL_E2E=NOT RUN`; `CI_E2E=NOT RUN`; `DATABASE_MIGRATION_LOCAL=PASS`; `AZURE_BLOB_CONFIGURATION=OWNER_REPORTED_CONFIGURED, NOT VERIFIED`; `DEPLOYMENT=NOT RUN`.
 
 ### Migración local aplicada - 2026-11-18
 
@@ -259,7 +259,7 @@ Esta entrada supersede los estados de planificación antiguos de este documento 
 - `npm run test:e2e=NOT RUN`: requiere la nueva columna local. Los E2E que migran la base SQL efímera de CI están añadidos, incluyendo 10:30 (30 min), 11:00 (45 min), disponibilidad 11:45, reprogramación dinámica, cancelación y modo fijo.
 - No se hizo commit, push, migración productiva ni despliegue.
 
-**Gates:** `FIXED_MODE=IMPLEMENTED`; `DYNAMIC_MODE=IMPLEMENTED`; `LOCAL_E2E=BLOCKED_BY_LOCAL_MIGRATION_PERMISSION`; `CI_E2E=PASS (run 45238991353)`; `PRODUCTION=NOT DEPLOYED`.
+**Gates:** `FIXED_MODE=IMPLEMENTED`; `DYNAMIC_MODE=IMPLEMENTED`; `LOCAL_E2E=BLOCKED_BY_LOCAL_MIGRATION_PERMISSION`; `CI_E2E=NOT RUN`; `PRODUCTION=NOT DEPLOYED`.
 
 ## Disponibilidad frente a auto-pausa de Azure SQL Free Tier — 2026-11-23
 
