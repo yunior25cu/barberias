@@ -283,4 +283,14 @@ Esta entrada supersede los estados de planificación antiguos de este documento 
 - Pruebas unitarias nuevas: éxito luego de 40613, sin reintento de error de login y límite máximo de intentos. Verificación local: lint/typecheck/build PASS; 14 pruebas pasan y 4 se omiten por SQL local.
 - Este seguimiento aún no se había enviado ni desplegado al cerrar la verificación local inicial. No se modificó la configuración Azure ni la base.
 
-Gates provisionales: COLD_START_ROOT_CAUSE=CONFIRMED; FOLLOWUP_LOCAL=PASS; FOLLOWUP_CI=NOT RUN; FOLLOWUP_PRODUCTION=NOT DEPLOYED.
+Gates previos al cierre: COLD_START_ROOT_CAUSE=CONFIRMED; FOLLOWUP_LOCAL=PASS; FOLLOWUP_CI=NOT RUN; FOLLOWUP_PRODUCTION=NOT DEPLOYED.
+
+### Cierre de recuperación de conexión fría - 2026-11-23
+
+- La segunda inspección del adaptador confirmó que el handshake inicial de `PrismaMssql.connect()` ocurre antes del pool `tarn`; por eso los límites ampliados del pool no protegían el primer `ConnectionPool.connect()` después de `AutoPause`.
+- Fix `63e01704f7fc57e8557586122eb32af9afe01f75`: reintento acotado únicamente del handshake para códigos SQL/transporte transitorios; errores de credenciales y consultas no se reintentan. App Insights ahora incluye eventos sanitizados de Route Handlers `/api/*`, sin mensajes, stacks, query strings ni datos de clientes.
+- Evidencia de CI: `barber` run `45259855619=SUCCESS`; prueba unitaria del 40613 y límites de intentos, lint, typecheck, SQL Server concurrency/E2E y build pasaron. La promoción en `main` run `45260584155=SUCCESS`, con gates, deploy Hybrid y smoke de salud/catálogo.
+- Evidencia productiva posterior al deploy del SHA anterior: cinco rondas de solo lectura devolvieron HTTP 200 en `/api/health` (`status=ok,database=ok`), `/alcorte/admin` y `/alcorte/reservar`. No se crearon reservas ni se usaron credenciales reales. La consulta de App Insights posterior al deploy no encontró eventos `NextApiRouteError` ni `NextBusinessPageRenderError`.
+- La base permanece en Free Tier con `AutoPause`; no se modificó su configuración, red, capacidad o facturación. No se forzó una pausa en producción. Por eso queda sin demostrar un despertar natural posterior a este SHA, aunque el handshake transitorio está cubierto por la prueba unitaria y el smoke HTTP actual.
+
+**Gates finales:** `ROOT_CAUSE=CONFIRMED`; `LOCAL_QUALITY=PASS`; `BARBER_CI=PASS (45259855619)`; `MAIN_QUALITY_AND_DEPLOY=PASS (45260584155, SHA 63e01704f7fc57e8557586122eb32af9afe01f75)`; `PRODUCTION_HTTP_SMOKE=PASS (5/5 rondas)`; `NATURAL_COLD_RESUME_AFTER_FIX=NOT OBSERVED`; `REAL_ADMIN_LOGIN=NOT TESTED`.
